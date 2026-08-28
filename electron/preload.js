@@ -12,15 +12,19 @@ contextBridge.exposeInMainWorld("api", {
   /** The remembered output base folder (falls back to ~/Music, then ~). */
   getOutputBase: () => ipcRenderer.invoke("config:outputBase"),
 
+  /** The remembered separation model ("htdemucs" | "htdemucs_ft"). */
+  getModel: () => ipcRenderer.invoke("config:model"),
+
   /**
    * Start separation.
    * @param {string} inputPath  absolute path to the audio file
    * @param {string} outputBase absolute path to the folder stems go under
+   * @param {string} model      "htdemucs" | "htdemucs_ft"
    * Resolves to { ok: true, stems, songDir, stemsDir, originalCopy }
    *          or { ok: false, message }.
    */
-  separate: (inputPath, outputBase) =>
-    ipcRenderer.invoke("separation:start", { inputPath, outputBase }),
+  separate: (inputPath, outputBase, model) =>
+    ipcRenderer.invoke("separation:start", { inputPath, outputBase, model }),
 
   /** Reveal a file or folder in Finder. */
   showItem: (targetPath) => ipcRenderer.invoke("shell:showItem", targetPath),

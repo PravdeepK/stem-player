@@ -2,10 +2,11 @@
 """Thin Demucs wrapper for the Stem Player app (Phase 1).
 
 Usage:
-    python separate.py <input_audio_path> <output_dir>
+    python separate.py <input_audio_path> <output_dir> [model]
 
-Runs the `htdemucs_ft` model on CPU and writes 4 stems (vocals, drums, bass, other)
-as WAV files into <output_dir>. Communicates with the Electron main process over
+[model] is "htdemucs" (default) or "htdemucs_ft". Runs on CPU and writes 4 stems
+(vocals, drums, bass, other) as WAV files into <output_dir>. Communicates with
+the Electron main process over
 stdout using newline-delimited JSON messages:
 
     {"type": "progress", "value": 0.0-1.0}
@@ -32,13 +33,20 @@ def log(*args):
     print(*args, file=sys.stderr, flush=True)
 
 
+ALLOWED_MODELS = {"htdemucs", "htdemucs_ft"}
+
+
 def main():
-    if len(sys.argv) != 3:
-        emit({"type": "error", "message": "expected exactly 2 arguments: <input> <output_dir>"})
+    if len(sys.argv) not in (3, 4):
+        emit({"type": "error", "message": "expected <input> <output_dir> [model]"})
         return 2
 
     input_path = os.path.abspath(sys.argv[1])
     output_dir = os.path.abspath(sys.argv[2])
+    model_name = sys.argv[3] if len(sys.argv) == 4 else "htdemucs"
+    if model_name not in ALLOWED_MODELS:
+        emit({"type": "error", "message": f"unknown model: {model_name}"})
+        return 2
 
     if not os.path.isfile(input_path):
         emit({"type": "error", "message": f"input file not found: {input_path}"})
@@ -85,7 +93,7 @@ def main():
 
     try:
         separator = Separator(
-            model="htdemucs_ft",
+            model=model_name,
             device="cpu",
             progress=False,
             callback=callback,
@@ -93,7 +101,7 @@ def main():
     except Exception as exc:
         log("failed to construct Separator:", repr(exc))
         log(traceback.format_exc())
-        emit({"type": "error", "message": "could not load the htdemucs_ft model"})
+        emit({"type": "error", "message": f"could not load the {model_name} model"})
         return 1
 
     try:

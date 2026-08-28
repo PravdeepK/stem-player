@@ -3,7 +3,8 @@
 Personal, non-commercial Electron app.
 
 - **Phase 1** — load a local audio file, split it into 4 stems (vocals, drums,
-  bass, instrumental) with [Demucs] (`htdemucs_ft`, CPU-only). "instrumental" is
+  bass, instrumental) with [Demucs] (`htdemucs` / `htdemucs_ft`, CPU-only).
+  "instrumental" is
   Demucs' `other` stem, renamed.
 - **Phase 2** — load the 4 stems into a Web Audio mixer: synchronized
   play/pause/seek, per-stem volume / mute / solo, waveform per stem
@@ -34,9 +35,11 @@ Personal, non-commercial Electron app.
   STEM_PLAYER_PYTHON=/path/to/python npm run dev
   ```
 
-- First separation downloads the `htdemucs_ft` weights (~1 GB — it's 4 fine-tuned
-  models, one per source) once; needs network. It's also ~4x slower than plain
-  `htdemucs` on CPU, in exchange for better separation.
+- Model is selectable in the UI (remembered in `<userData>/config.json`):
+  - **Fast — `htdemucs`** (default): ~80 MB weights, quickest.
+  - **Fine-tuned — `htdemucs_ft`**: ~1 GB weights (4 models, one per source),
+    ~4x slower on CPU, better separation.
+  - First use of either downloads its weights once; needs network.
 
 ## Configuration (optional)
 

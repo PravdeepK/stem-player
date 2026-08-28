@@ -35,6 +35,7 @@ export default function Home() {
   const [errorMsg, setErrorMsg] = useState("");
   const [loadNote, setLoadNote] = useState("");
   const [mixerTitle, setMixerTitle] = useState("");
+  const [model, setModel] = useState("htdemucs");
   // null = not yet checked, true/false = checked after mount (avoids SSR flash).
   const [hasApi, setHasApi] = useState(null);
 
@@ -57,6 +58,7 @@ export default function Home() {
     if (!available) return;
 
     window.api.getOutputBase().then((base) => setOutputBase(base || ""));
+    window.api.getModel().then((m) => m && setModel(m));
 
     const unsubscribe = window.api.onProgress((value) => {
       setProgress(typeof value === "number" ? value : 0);
@@ -95,7 +97,7 @@ export default function Home() {
     setErrorMsg("");
     setLoadNote("");
 
-    const res = await window.api.separate(filePath, chosen);
+    const res = await window.api.separate(filePath, chosen, model);
     if (res && res.ok) {
       setResult(res);
       setStatus(STATES.DONE);
@@ -137,7 +139,7 @@ export default function Home() {
     <main className="wrap">
       <header className="head">
         <div className="title">STEM PLAYER</div>
-        <div className="subtitle">Local separation · htdemucs_ft · CPU</div>
+        <div className="subtitle">Local separation · Demucs · CPU</div>
       </header>
 
       {hasApi === false && (
@@ -177,6 +179,23 @@ export default function Home() {
           <button onClick={handleChangeFolder} disabled={busy}>
             Change
           </button>
+        </div>
+
+        <div className="row">
+          <span className="label">Model</span>
+          <div className="value">
+            <select
+              className="model-select"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              disabled={busy}
+            >
+              <option value="htdemucs">Fast — htdemucs</option>
+              <option value="htdemucs_ft">
+                Fine-tuned — htdemucs_ft (~4× slower)
+              </option>
+            </select>
+          </div>
         </div>
 
         <p className="hint">

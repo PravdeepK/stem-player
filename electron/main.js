@@ -154,6 +154,15 @@ ipcMain.handle("dialog:pickFolder", async () => {
 // --- IPC: current remembered output folder ---------------------------
 ipcMain.handle("config:outputBase", async () => defaultOutputBase());
 
+// --- separation model ------------------------------------------------
+const ALLOWED_MODELS = new Set(["htdemucs", "htdemucs_ft"]);
+const DEFAULT_MODEL = "htdemucs";
+
+ipcMain.handle("config:model", async () => {
+  const saved = readConfig().lastModel;
+  return ALLOWED_MODELS.has(saved) ? saved : DEFAULT_MODEL;
+});
+
 // --- IPC: reveal a file/folder in Finder ----------------------------
 ipcMain.handle("shell:showItem", async (_event, targetPath) => {
   if (typeof targetPath === "string" && targetPath.length > 0) {
@@ -232,6 +241,7 @@ ipcMain.handle("stems:read", async (_event, filePath) => {
 ipcMain.handle("separation:start", async (_event, args) => {
   const inputPath = args && args.inputPath;
   const outputBase = args && args.outputBase;
+  const model = ALLOWED_MODELS.has(args && args.model) ? args.model : DEFAULT_MODEL;
 
   if (activeJob) {
     return { ok: false, message: "A separation is already running." };
@@ -287,13 +297,13 @@ ipcMain.handle("separation:start", async (_event, args) => {
     return { ok: false, message: "Could not create the output folder." };
   }
 
-  // Remember this base for next time.
-  writeConfig({ lastOutputDir: outputBase });
+  // Remember the base folder + model choice for next time.
+  writeConfig({ lastOutputDir: outputBase, lastModel: model });
 
   return await new Promise((resolve) => {
     let child;
     try {
-      child = spawn(python, [SEPARATE_SCRIPT, inputPath, stemsDir], {
+      child = spawn(python, [SEPARATE_SCRIPT, inputPath, stemsDir, model], {
         cwd: path.join(__dirname, ".."),
       });
     } catch (err) {
