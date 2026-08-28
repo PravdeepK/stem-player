@@ -33,6 +33,7 @@ export function useAudioMixer() {
   const playingRef = useRef(false);
   const loadedRef = useRef(false);
   const stoppingRef = useRef(false); // true while we call source.stop() ourselves
+  const scrubbingRef = useRef(false); // true while dragging a seek control
   const rafRef = useRef(0);
   const lastPushRef = useRef(0);
   const settingsRef = useRef(emptySettings());
@@ -73,13 +74,18 @@ export function useAudioMixer() {
     if (!ctx) return;
     const s = settingsRef.current;
     const anySolo = STEM_NAMES.some((n) => s[n].solo);
+    const t = ctx.currentTime;
     for (const n of STEM_NAMES) {
       const g = gainsRef.current[n];
       if (!g) continue;
       let v = s[n].volume;
       if (anySolo) v = s[n].solo ? v : 0;
       else if (s[n].muted) v = 0;
-      g.gain.setTargetAtTime(v, ctx.currentTime, 0.015);
+      // Short linear ramp: click-free AND reaches the target exactly (unlike
+      // setTargetAtTime, whose exponential tail toward 0 stays faintly audible).
+      g.gain.cancelScheduledValues(t);
+      g.gain.setValueAtTime(g.gain.value, t);
+      g.gain.linearRampToValueAtTime(v, t + 0.02);
     }
   };
 
@@ -127,12 +133,16 @@ export function useAudioMixer() {
   const tick = useCallback(() => {
     const pos = positionNow();
     const clamped = clamp(pos, 0, durationRef.current);
-    pushTime(clamped);
 
-    const now = performance.now();
-    if (now - lastPushRef.current > 60) {
-      lastPushRef.current = now;
-      setCurrentTime(clamped);
+    // While the user is dragging a seek control, let previewTime() own the
+    // playhead visuals; the audio keeps playing underneath.
+    if (!scrubbingRef.current) {
+      pushTime(clamped);
+      const now = performance.now();
+      if (now - lastPushRef.current > 60) {
+        lastPushRef.current = now;
+        setCurrentTime(clamped);
+      }
     }
 
     if (durationRef.current > 0 && pos >= durationRef.current) {
@@ -150,6 +160,7 @@ export function useAudioMixer() {
 
   const play = useCallback(async () => {
     if (!loadedRef.current || playingRef.current) return;
+    scrubbingRef.current = false;
     const ctx = getCtx();
     if (ctx.state === "suspended") await ctx.resume();
     startSourcesAt(clamp(offsetRef.current, 0, durationRef.current));
@@ -160,6 +171,7 @@ export function useAudioMixer() {
 
   const pause = useCallback(() => {
     if (!playingRef.current) return;
+    scrubbingRef.current = false;
     const pos = clamp(positionNow(), 0, durationRef.current);
     stopSources();
     playingRef.current = false;
@@ -175,6 +187,7 @@ export function useAudioMixer() {
 
   const seek = useCallback((t) => {
     const target = clamp(t, 0, durationRef.current || 0);
+    scrubbingRef.current = false;
     offsetRef.current = target;
     setCurrentTime(target);
     pushTime(target);
@@ -182,6 +195,16 @@ export function useAudioMixer() {
       stopSources();
       startSourcesAt(target);
     }
+  }, []);
+
+  // Move the playhead visuals + time readout without committing a seek — used
+  // while dragging a seek control. Does not touch the transport; the running
+  // tick loop yields the playhead to this until seek() commits.
+  const previewTime = useCallback((t) => {
+    scrubbingRef.current = true;
+    const c = clamp(t, 0, durationRef.current || 0);
+    pushTime(c);
+    setCurrentTime(c);
   }, []);
 
   const updateStem = (name, patch) => {
@@ -193,8 +216,15 @@ export function useAudioMixer() {
     applyGains();
   };
   const setVolume = useCallback((name, v) => updateStem(name, { volume: clamp(v, 0, 1) }), []);
-  const setMute = useCallback((name, muted) => updateStem(name, { muted }), []);
-  const setSolo = useCallback((name, solo) => updateStem(name, { solo }), []);
+  // Mute and solo are mutually exclusive per stem — turning one on clears the other.
+  const setMute = useCallback(
+    (name, muted) => updateStem(name, muted ? { muted: true, solo: false } : { muted: false }),
+    []
+  );
+  const setSolo = useCallback(
+    (name, solo) => updateStem(name, solo ? { solo: true, muted: false } : { solo: false }),
+    []
+  );
 
   const onTime = useCallback((cb) => {
     timeListenersRef.current.add(cb);
@@ -303,6 +333,7 @@ export function useAudioMixer() {
     play,
     pause,
     seek,
+    previewTime,
     setVolume,
     setMute,
     setSolo,

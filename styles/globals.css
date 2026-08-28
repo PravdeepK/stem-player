@@ -258,6 +258,8 @@ button.link:hover:not(:disabled) {
   position: relative;
   margin: 14px 0 6px;
   height: 18px;
+  cursor: pointer;
+  touch-action: none;
 }
 .seek-track {
   position: absolute;
@@ -268,19 +270,12 @@ button.link:hover:not(:disabled) {
   background: var(--panel-2);
   border-radius: 999px;
   overflow: hidden;
+  pointer-events: none;
 }
 .seek-fill {
   height: 100%;
   width: 0;
   background: var(--accent);
-}
-.seek-input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
 }
 .mixer-title {
   color: var(--muted);
@@ -322,6 +317,7 @@ button.link:hover:not(:disabled) {
 .wave {
   position: absolute;
   inset: 0;
+  pointer-events: none;
 }
 .playhead {
   position: absolute;

@@ -11,7 +11,7 @@ require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 const isDev = !!process.env.ELECTRON_START_URL;
 const SEPARATE_SCRIPT = path.join(__dirname, "..", "python", "separate.py");
-const SUPPORTED_EXTS = new Set([".mp3", ".wav"]);
+const SUPPORTED_EXTS = new Set([".mp3", ".wav", ".flac", ".m4a", ".mp4"]);
 
 // --- locate a Python interpreter that actually has demucs ----------------
 // A conda base env on PATH means a bare `python3` often resolves to one
@@ -132,7 +132,7 @@ ipcMain.handle("dialog:pickFile", async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: "Select an audio file",
     properties: ["openFile"],
-    filters: [{ name: "Audio", extensions: ["mp3", "wav"] }],
+    filters: [{ name: "Audio", extensions: ["mp3", "wav", "flac", "m4a", "mp4"] }],
   });
   if (result.canceled || result.filePaths.length === 0) return null;
   return result.filePaths[0];
@@ -243,7 +243,10 @@ ipcMain.handle("separation:start", async (_event, args) => {
 
   const ext = path.extname(inputPath).toLowerCase();
   if (!SUPPORTED_EXTS.has(ext)) {
-    return { ok: false, message: "Unsupported format. Use an mp3 or wav file." };
+    return {
+      ok: false,
+      message: "Unsupported format. Use mp3, wav, flac, m4a, or mp4.",
+    };
   }
 
   if (typeof outputBase !== "string" || outputBase.length === 0) {

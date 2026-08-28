@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { STEM_NAMES } from "../hooks/useAudioMixer";
 import StemTrack from "./StemTrack";
 
@@ -20,17 +20,18 @@ export default function Mixer({ mixer, title }) {
     play,
     pause,
     seek,
+    previewTime,
     setVolume,
     setMute,
     setSolo,
     onTime,
   } = mixer;
 
-  // Live playhead for the global seek bar, updated imperatively.
+  const seekBarRef = useRef(null);
   const seekFillRef = useRef(null);
-  const [scrubbing, setScrubbing] = useState(false);
-  const [scrubValue, setScrubValue] = useState(0);
+  const draggingRef = useRef(false);
 
+  // Live seek-bar fill, driven imperatively so playback doesn't re-render it.
   useEffect(() => {
     return onTime((t) => {
       const el = seekFillRef.current;
@@ -38,17 +39,41 @@ export default function Mixer({ mixer, title }) {
     });
   }, [onTime, duration]);
 
-  // While dragging the seek bar, move the fill live (no transport tick fires).
-  function previewScrub(v) {
-    setScrubValue(v);
-    const el = seekFillRef.current;
-    if (el && duration) el.style.width = `${(v / duration) * 100}%`;
-  }
-
   if (!isLoaded || !buffers) return null;
 
   const anySolo = STEM_NAMES.some((n) => settings[n].solo);
-  const displayTime = scrubbing ? scrubValue : currentTime;
+
+  function fracFromEvent(e) {
+    const el = seekBarRef.current;
+    if (!el) return 0;
+    const rect = el.getBoundingClientRect();
+    return Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+  }
+
+  function onSeekDown(e) {
+    if (!duration) return;
+    draggingRef.current = true;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* noop */
+    }
+    previewTime(fracFromEvent(e) * duration);
+  }
+  function onSeekMove(e) {
+    if (!draggingRef.current || !duration) return;
+    previewTime(fracFromEvent(e) * duration);
+  }
+  function onSeekUp(e) {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* noop */
+    }
+    seek(fracFromEvent(e) * duration);
+  }
 
   return (
     <section className="mixer">
@@ -57,29 +82,21 @@ export default function Mixer({ mixer, title }) {
           {isPlaying ? "Pause" : "Play"}
         </button>
         <span className="time mono">
-          {fmt(displayTime)} / {fmt(duration)}
+          {fmt(currentTime)} / {fmt(duration)}
         </span>
       </div>
 
-      <div className="seek">
+      <div
+        className="seek"
+        ref={seekBarRef}
+        onPointerDown={onSeekDown}
+        onPointerMove={onSeekMove}
+        onPointerUp={onSeekUp}
+        onPointerCancel={onSeekUp}
+      >
         <div className="seek-track">
           <div ref={seekFillRef} className="seek-fill" />
         </div>
-        <input
-          className="seek-input"
-          type="range"
-          min={0}
-          max={duration || 0}
-          step={0.01}
-          value={scrubbing ? scrubValue : Math.min(currentTime, duration || 0)}
-          onMouseDown={() => setScrubbing(true)}
-          onChange={(e) => previewScrub(parseFloat(e.target.value))}
-          onMouseUp={(e) => {
-            setScrubbing(false);
-            seek(parseFloat(e.target.value));
-          }}
-          aria-label="Seek"
-        />
       </div>
 
       {title && <div className="mixer-title mono">{title}</div>}
@@ -96,6 +113,7 @@ export default function Mixer({ mixer, title }) {
             onMute={setMute}
             onSolo={setSolo}
             onSeek={seek}
+            onPreview={previewTime}
             registerTime={onTime}
           />
         ))}

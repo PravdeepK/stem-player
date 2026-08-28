@@ -95,7 +95,7 @@ If `mysong/` already exists it is deleted and rewritten (overwrite).
 ## Test it — separation (Phase 1)
 
 1. Launch with `npm run dev`.
-2. Click **Pick file…**, choose an `.mp3` or `.wav`.
+2. Click **Pick file…**, choose an audio file (mp3, wav, flac, m4a, mp4).
 3. (Optional) **Change** the output folder.
 4. Click **Separate**. Confirm/redirect the folder in the picker that opens.
    You'll see `Processing… N%`.

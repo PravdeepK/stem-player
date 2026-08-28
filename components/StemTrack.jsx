@@ -36,6 +36,7 @@ export default function StemTrack({
   onMute,
   onSolo,
   onSeek,
+  onPreview,
   registerTime,
 }) {
   const containerRef = useRef(null);
@@ -89,12 +90,37 @@ export default function StemTrack({
     });
   }, [registerTime]);
 
-  function handleSeekClick(e) {
+  const draggingRef = useRef(false);
+
+  function timeFromEvent(e) {
     const d = durationRef.current;
-    if (!d) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const frac = (e.clientX - rect.left) / rect.width;
-    onSeek(Math.min(d, Math.max(0, frac * d)));
+    const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    return frac * d;
+  }
+  function onWaveDown(e) {
+    if (!durationRef.current) return;
+    draggingRef.current = true;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* noop */
+    }
+    onPreview(timeFromEvent(e));
+  }
+  function onWaveMove(e) {
+    if (!draggingRef.current) return;
+    onPreview(timeFromEvent(e));
+  }
+  function onWaveUp(e) {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* noop */
+    }
+    onSeek(timeFromEvent(e)); // commit once, on release
   }
 
   const anySolo = settings.anySolo;
@@ -105,7 +131,13 @@ export default function StemTrack({
     <div className={`stem ${dimmed ? "dimmed" : ""}`}>
       <div className="stem-label">{name}</div>
 
-      <div className="wave-wrap" onClick={handleSeekClick}>
+      <div
+        className="wave-wrap"
+        onPointerDown={onWaveDown}
+        onPointerMove={onWaveMove}
+        onPointerUp={onWaveUp}
+        onPointerCancel={onWaveUp}
+      >
         <div ref={containerRef} className="wave" />
         <div ref={playheadRef} className="playhead" />
       </div>
