@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAudioMixer } from "../hooks/useAudioMixer";
 import Mixer from "../components/Mixer";
 
@@ -19,6 +19,13 @@ function basename(p) {
   return p.replace(/\/+$/, "").split("/").pop();
 }
 
+function fmtDur(s) {
+  s = Math.max(0, Math.round(s));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  return `${m}:${(s % 60).toString().padStart(2, "0")}`;
+}
+
 export default function Home() {
   const [status, setStatus] = useState(STATES.IDLE);
   const [filePath, setFilePath] = useState(null);
@@ -31,7 +38,18 @@ export default function Home() {
   // null = not yet checked, true/false = checked after mount (avoids SSR flash).
   const [hasApi, setHasApi] = useState(null);
 
+  const procStartRef = useRef(0);
+  const [nowTs, setNowTs] = useState(0);
+
   const mixer = useAudioMixer();
+
+  // Tick once a second while separating so the ETA counts down between the
+  // (coarser) progress updates from the Python subprocess.
+  useEffect(() => {
+    if (status !== STATES.PROCESSING) return undefined;
+    const id = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [status]);
 
   useEffect(() => {
     const available = typeof window !== "undefined" && !!window.api;
@@ -69,6 +87,8 @@ export default function Home() {
     if (!chosen) return;
     setOutputBase(chosen);
 
+    procStartRef.current = Date.now();
+    setNowTs(Date.now());
     setStatus(STATES.PROCESSING);
     setProgress(0);
     setResult(null);
@@ -103,11 +123,21 @@ export default function Home() {
   const busy = status === STATES.PROCESSING;
   const pct = Math.round(progress * 100);
 
+  const elapsedSec =
+    busy && procStartRef.current
+      ? Math.max(0, (nowTs - procStartRef.current) / 1000)
+      : 0;
+  let etaSec =
+    progress > 0.05 && elapsedSec > 2
+      ? (elapsedSec * (1 - progress)) / progress
+      : null;
+  if (etaSec != null && etaSec >= 30) etaSec = Math.round(etaSec / 5) * 5;
+
   return (
     <main className="wrap">
       <header className="head">
         <div className="title">STEM PLAYER</div>
-        <div className="subtitle">Local separation · htdemucs · CPU</div>
+        <div className="subtitle">Local separation · htdemucs_ft · CPU</div>
       </header>
 
       {hasApi === false && (
@@ -184,6 +214,12 @@ export default function Home() {
             </div>
             <div className="bar">
               <div className="bar-fill" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="dim small" style={{ marginTop: 8 }}>
+              {fmtDur(elapsedSec)} elapsed
+              {etaSec != null
+                ? ` · ~${fmtDur(etaSec)} left`
+                : " · estimating…"}
             </div>
           </div>
         )}

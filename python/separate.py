@@ -4,7 +4,7 @@
 Usage:
     python separate.py <input_audio_path> <output_dir>
 
-Runs the `htdemucs` model on CPU and writes 4 stems (vocals, drums, bass, other)
+Runs the `htdemucs_ft` model on CPU and writes 4 stems (vocals, drums, bass, other)
 as WAV files into <output_dir>. Communicates with the Electron main process over
 stdout using newline-delimited JSON messages:
 
@@ -62,8 +62,8 @@ def main():
 
     # --- progress plumbing --------------------------------------------------
     # The Demucs callback dict carries: model_idx_in_bag, models, audio_length,
-    # segment_offset, state ("start"/"end"). htdemucs is a single-model bag, so
-    # this reduces to how far through the audio we are.
+    # segment_offset, state ("start"/"end"). htdemucs_ft is a 4-model bag (one
+    # fine-tuned model per source), so progress spans model_idx 0..3.
     state = {"last": 0.0}
 
     def callback(data):
@@ -85,7 +85,7 @@ def main():
 
     try:
         separator = Separator(
-            model="htdemucs",
+            model="htdemucs_ft",
             device="cpu",
             progress=False,
             callback=callback,
@@ -93,7 +93,7 @@ def main():
     except Exception as exc:
         log("failed to construct Separator:", repr(exc))
         log(traceback.format_exc())
-        emit({"type": "error", "message": "could not load the htdemucs model"})
+        emit({"type": "error", "message": "could not load the htdemucs_ft model"})
         return 1
 
     try:

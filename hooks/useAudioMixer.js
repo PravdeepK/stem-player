@@ -26,6 +26,7 @@ export function useAudioMixer() {
   const ctxRef = useRef(null);
   const buffersRef = useRef({}); // name -> AudioBuffer
   const gainsRef = useRef({}); // name -> GainNode (persistent)
+  const masterRef = useRef(null); // headroom bus: stem gains -> master -> destination
   const sourcesRef = useRef({}); // name -> AudioBufferSourceNode (per play)
   const startTimeRef = useRef(0); // ctx.currentTime when the current segment was scheduled
   const offsetRef = useRef(0); // track position (s) the current segment starts from
@@ -81,11 +82,11 @@ export function useAudioMixer() {
       let v = s[n].volume;
       if (anySolo) v = s[n].solo ? v : 0;
       else if (s[n].muted) v = 0;
-      // Short linear ramp: click-free AND reaches the target exactly (unlike
-      // setTargetAtTime, whose exponential tail toward 0 stays faintly audible).
-      g.gain.cancelScheduledValues(t);
-      g.gain.setValueAtTime(g.gain.value, t);
-      g.gain.linearRampToValueAtTime(v, t + 0.02);
+      // Smooth exponential glide (no click)...
+      g.gain.setTargetAtTime(v, t, 0.012);
+      // ...then, for a silenced stem, pin it to exactly 0 once the glide has
+      // settled, so setTargetAtTime's asymptotic tail can't stay audible.
+      if (v === 0) g.gain.setValueAtTime(0, t + 0.09);
     }
   };
 
@@ -279,11 +280,25 @@ export function useAudioMixer() {
             /* noop */
           }
         }
+        if (masterRef.current) {
+          try {
+            masterRef.current.disconnect();
+          } catch {
+            /* noop */
+          }
+        }
+        // Master headroom bus: 4 stems reconstruct a near-0 dBFS master, so
+        // summing them at unity clips on transients. Pull the bus down ~6 dB.
+        const master = ctx.createGain();
+        master.gain.value = 0.5;
+        master.connect(ctx.destination);
+        masterRef.current = master;
+
         const nextGains = {};
         for (const name of STEM_NAMES) {
           const g = ctx.createGain();
           g.gain.value = settingsRef.current[name].volume;
-          g.connect(ctx.destination);
+          g.connect(master);
           nextGains[name] = g;
         }
 
