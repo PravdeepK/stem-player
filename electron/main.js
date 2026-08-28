@@ -5,6 +5,10 @@ const path = require("path");
 const fs = require("fs");
 const { spawn, spawnSync } = require("child_process");
 
+// Load .env from the project root (optional). Values there populate
+// process.env, which the Python subprocess inherits (e.g. HF_TOKEN).
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
+
 const isDev = !!process.env.ELECTRON_START_URL;
 const SEPARATE_SCRIPT = path.join(__dirname, "..", "python", "separate.py");
 const SUPPORTED_EXTS = new Set([".mp3", ".wav"]);
@@ -87,20 +91,6 @@ function defaultOutputBase() {
   } catch {
     return app.getPath("home");
   }
-}
-
-/**
- * Return a non-existing directory path based on <base>/<name>, appending
- * -2, -3, ... until one is free.
- */
-function uniqueDir(base, name) {
-  let candidate = path.join(base, name);
-  let n = 2;
-  while (fs.existsSync(candidate)) {
-    candidate = path.join(base, `${name}-${n}`);
-    n += 1;
-  }
-  return candidate;
 }
 
 function createWindow() {
@@ -214,7 +204,9 @@ ipcMain.handle("separation:start", async (_event, args) => {
   let originalCopy;
   try {
     fs.mkdirSync(outputBase, { recursive: true });
-    songDir = uniqueDir(outputBase, songName);
+    songDir = path.join(outputBase, songName);
+    // Overwrite any existing folder for this song to avoid duplicates.
+    fs.rmSync(songDir, { recursive: true, force: true });
     stemsDir = path.join(songDir, "stems");
     fs.mkdirSync(stemsDir, { recursive: true });
     // Copy the source file alongside the stems/ folder.

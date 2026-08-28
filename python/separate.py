@@ -105,20 +105,22 @@ def main():
         return 1
 
     # The 4 stem WAVs are written straight into output_dir (the caller decides
-    # the folder layout).
+    # the folder layout). Demucs' "other" stem is exposed as "instrumental".
+    rename = {"other": "instrumental"}
     written = {}
     try:
         for name, source in stems.items():
-            out_path = os.path.join(output_dir, f"{name}.wav")
+            out_name = rename.get(name, name)
+            out_path = os.path.join(output_dir, f"{out_name}.wav")
             save_audio(source, out_path, samplerate=separator.samplerate)
-            written[name] = out_path
+            written[out_name] = out_path
     except Exception as exc:
         log("failed to write stems:", repr(exc))
         log(traceback.format_exc())
         emit({"type": "error", "message": "failed to write stem files to disk"})
         return 1
 
-    expected = {"vocals", "drums", "bass", "other"}
+    expected = {"vocals", "drums", "bass", "instrumental"}
     missing = expected - set(written)
     if missing:
         log("missing expected stems:", missing, "got:", set(written))

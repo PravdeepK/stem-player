@@ -10,7 +10,7 @@ const STATES = {
   ERROR: "error",
 };
 
-const STEM_ORDER = ["vocals", "drums", "bass", "other"];
+const STEM_ORDER = ["vocals", "drums", "bass", "instrumental"];
 
 function basename(p) {
   if (!p) return "";

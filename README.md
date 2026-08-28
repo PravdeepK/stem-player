@@ -1,7 +1,8 @@
 # Stem Player — Phase 1 (separation pipeline only)
 
 Personal, non-commercial Electron app. Loads a local audio file and splits it
-into 4 stems (vocals, drums, bass, other) with [Demucs] (`htdemucs`, CPU-only).
+into 4 stems (vocals, drums, bass, instrumental) with [Demucs] (`htdemucs`,
+CPU-only). "instrumental" is Demucs' `other` stem, renamed.
 
 No mixer, no playback UI — that's a later phase.
 
@@ -31,6 +32,21 @@ No mixer, no playback UI — that's a later phase.
   ```
 
 - First separation downloads the `htdemucs` weights (~80 MB) once; needs network.
+
+## Configuration (optional)
+
+Copy `.env.example` to `.env`:
+
+```sh
+cp .env.example .env
+```
+
+- `HF_TOKEN` — Hugging Face read token. Silences the "unauthenticated requests
+  to the HF Hub" warning and raises the download rate limit.
+- `STEM_PLAYER_PYTHON` — force a specific Python interpreter.
+
+`.env` is loaded by the Electron main process (via `dotenv`) and the values are
+inherited by the Python subprocess. `.env` is gitignored.
 
 ## Install
 
@@ -68,10 +84,10 @@ redirect). For a file `mysong.mp3` and base `~/Music/stems`:
       vocals.wav
       drums.wav
       bass.wav
-      other.wav
+      instrumental.wav
 ```
 
-If `mysong/` already exists it becomes `mysong-2/`, `mysong-3/`, …
+If `mysong/` already exists it is deleted and rewritten (overwrite).
 
 ## Test it
 
