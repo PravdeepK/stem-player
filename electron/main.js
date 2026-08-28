@@ -161,6 +161,73 @@ ipcMain.handle("shell:showItem", async (_event, targetPath) => {
   }
 });
 
+// --- stem loading (Phase 2) ----------------------------------------------
+const STEM_NAMES = ["vocals", "drums", "bass", "instrumental"];
+// 200 MB ceiling per stem file — generous for WAV, guards against nonsense.
+const MAX_STEM_BYTES = 200 * 1024 * 1024;
+
+/**
+ * Given a folder, resolve it to a canonical
+ * { vocals, drums, bass, instrumental } map of absolute WAV paths, or null if
+ * the 4 stems aren't all there. Accepts either a stems/ folder or its parent,
+ * and maps a legacy other.wav -> instrumental.
+ */
+function resolveStemsFolder(dir) {
+  const roots = [dir, path.join(dir, "stems")];
+  for (const root of roots) {
+    let entries;
+    try {
+      entries = new Set(fs.readdirSync(root).map((f) => f.toLowerCase()));
+    } catch {
+      continue;
+    }
+    const pick = (name) => {
+      if (entries.has(`${name}.wav`)) return path.join(root, `${name}.wav`);
+      return null;
+    };
+    const map = {
+      vocals: pick("vocals"),
+      drums: pick("drums"),
+      bass: pick("bass"),
+      instrumental: pick("instrumental") || pick("other"),
+    };
+    if (STEM_NAMES.every((n) => map[n])) return map;
+  }
+  return null;
+}
+
+// Pick a folder + resolve it in one call (used by the "Load stems folder" button).
+ipcMain.handle("dialog:pickStemsFolder", async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Select a folder containing the 4 stems",
+    defaultPath: defaultOutputBase(),
+    properties: ["openDirectory"],
+  });
+  if (result.canceled || result.filePaths.length === 0) return { ok: false, canceled: true };
+  const dir = result.filePaths[0];
+  const stems = resolveStemsFolder(dir);
+  if (!stems) {
+    console.error("[stems] folder has no complete stem set:", dir);
+    return {
+      ok: false,
+      message: "That folder doesn't contain vocals/drums/bass/instrumental .wav files.",
+    };
+  }
+  return { ok: true, stems, dir };
+});
+
+// Read one stem file as raw bytes for decodeAudioData in the renderer.
+ipcMain.handle("stems:read", async (_event, filePath) => {
+  if (typeof filePath !== "string") throw new Error("bad path");
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext !== ".wav") throw new Error(`refusing to read non-wav: ${filePath}`);
+  const stat = fs.statSync(filePath);
+  if (stat.size > MAX_STEM_BYTES) throw new Error(`stem file too large: ${filePath}`);
+  const buf = await fs.promises.readFile(filePath);
+  // Return a tightly-sized ArrayBuffer (structured-clone friendly).
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+});
+
 // --- IPC: run separation ---------------------------------------------
 ipcMain.handle("separation:start", async (_event, args) => {
   const inputPath = args && args.inputPath;

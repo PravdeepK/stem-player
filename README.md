@@ -1,10 +1,13 @@
-# Stem Player — Phase 1 (separation pipeline only)
+# Stem Player
 
-Personal, non-commercial Electron app. Loads a local audio file and splits it
-into 4 stems (vocals, drums, bass, instrumental) with [Demucs] (`htdemucs`,
-CPU-only). "instrumental" is Demucs' `other` stem, renamed.
+Personal, non-commercial Electron app.
 
-No mixer, no playback UI — that's a later phase.
+- **Phase 1** — load a local audio file, split it into 4 stems (vocals, drums,
+  bass, instrumental) with [Demucs] (`htdemucs`, CPU-only). "instrumental" is
+  Demucs' `other` stem, renamed.
+- **Phase 2** — load the 4 stems into a Web Audio mixer: synchronized
+  play/pause/seek, per-stem volume / mute / solo, waveform per stem
+  (waveforms via wavesurfer.js, audio via the Web Audio graph).
 
 ## Prerequisites
 
@@ -89,15 +92,28 @@ redirect). For a file `mysong.mp3` and base `~/Music/stems`:
 
 If `mysong/` already exists it is deleted and rewritten (overwrite).
 
-## Test it
+## Test it — separation (Phase 1)
 
 1. Launch with `npm run dev`.
-2. Click **Pick audio file…**, choose an `.mp3` or `.wav`.
-3. (Optional) **Change…** the output folder.
+2. Click **Pick file…**, choose an `.mp3` or `.wav`.
+3. (Optional) **Change** the output folder.
 4. Click **Separate**. Confirm/redirect the folder in the picker that opens.
    You'll see `Processing… N%`.
-5. On success the UI shows **Done** with the song folder path (with a
-   **Show in Finder** button) and the full stem + original paths.
+5. On success the UI shows **Separated** with the song folder path (with a
+   **Show in Finder** button). The 4 stems then auto-load into the mixer.
+
+## Test it — mixer (Phase 2)
+
+- After a separation the stems auto-load, or click **Load stems folder…** and
+  pick any folder that contains `vocals/drums/bass/instrumental.wav` (a
+  `stems/` subfolder or its parent both work; a legacy `other.wav` is accepted
+  as the instrumental).
+- **Play/Pause**, drag the **seek bar** or click any **waveform** to scrub.
+- Per stem: **volume** slider, **M** (mute), **S** (solo — mutes the others).
+  All 4 stems stay sample-synced (scheduled off one shared start time).
+
+Stem audio is read over IPC and decoded in the renderer — ~4 decoded buffers
+in memory (a few hundred MB for a full track).
 
 Errors (bad/corrupt file, unsupported format, subprocess crash) show a generic
 failure message in the UI; the real error is logged to the Electron console

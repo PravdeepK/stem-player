@@ -26,6 +26,16 @@ contextBridge.exposeInMainWorld("api", {
   showItem: (targetPath) => ipcRenderer.invoke("shell:showItem", targetPath),
 
   /**
+   * Pick a folder and resolve it to the 4 stems.
+   * Resolves to { ok: true, stems: {vocals,drums,bass,instrumental}, dir }
+   *          or { ok: false, canceled } / { ok: false, message }.
+   */
+  pickStemsFolder: () => ipcRenderer.invoke("dialog:pickStemsFolder"),
+
+  /** Read one stem .wav as an ArrayBuffer (for decodeAudioData). */
+  readStemFile: (filePath) => ipcRenderer.invoke("stems:read", filePath),
+
+  /**
    * Subscribe to progress updates (0.0 - 1.0).
    * Returns an unsubscribe function.
    */
