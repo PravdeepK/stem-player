@@ -1,6 +1,26 @@
 import { useEffect, useRef } from "react";
 import { STEM_NAMES } from "../hooks/useAudioMixer";
+import { tap } from "../lib/haptics";
 import StemTrack from "./StemTrack";
+
+// Four stem pods arranged around a shared transport hub, inside a circular
+// shell. Grid positions are fixed per stem so the zones stay put:
+//
+//        vocals  ( hub )  drums
+//        bass    ( hub )  instrumental
+//
+// The hub's outer arc shows track progress but is display-only — scrubbing
+// lives on the linear seek bar and on each pod's waveform, as before.
+
+const HUB_R = 46;
+const HUB_C = 2 * Math.PI * HUB_R;
+
+const ZONE_SLOT = {
+  vocals: "nw",
+  drums: "ne",
+  bass: "sw",
+  instrumental: "se",
+};
 
 function fmt(t) {
   if (!isFinite(t) || t < 0) t = 0;
@@ -29,13 +49,18 @@ export default function Mixer({ mixer, title }) {
 
   const seekBarRef = useRef(null);
   const seekFillRef = useRef(null);
-  const draggingRef = useRef(false);
+  const hubArcRef = useRef(null);
+  const seekDragRef = useRef(false);
 
-  // Live seek-bar fill, driven imperatively so playback doesn't re-render it.
+  // Live seek fill + hub progress arc, driven imperatively so playback never
+  // re-renders the tree.
   useEffect(() => {
     return onTime((t) => {
-      const el = seekFillRef.current;
-      if (el && duration) el.style.width = `${(t / duration) * 100}%`;
+      const frac = duration ? Math.min(1, Math.max(0, t / duration)) : 0;
+      const fill = seekFillRef.current;
+      if (fill) fill.style.width = `${frac * 100}%`;
+      const arc = hubArcRef.current;
+      if (arc) arc.style.strokeDashoffset = `${HUB_C * (1 - frac)}`;
     });
   }, [onTime, duration]);
 
@@ -52,7 +77,7 @@ export default function Mixer({ mixer, title }) {
 
   function onSeekDown(e) {
     if (!duration) return;
-    draggingRef.current = true;
+    seekDragRef.current = true;
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {
@@ -61,12 +86,12 @@ export default function Mixer({ mixer, title }) {
     previewTime(fracFromEvent(e) * duration);
   }
   function onSeekMove(e) {
-    if (!draggingRef.current || !duration) return;
+    if (!seekDragRef.current || !duration) return;
     previewTime(fracFromEvent(e) * duration);
   }
   function onSeekUp(e) {
-    if (!draggingRef.current) return;
-    draggingRef.current = false;
+    if (!seekDragRef.current) return;
+    seekDragRef.current = false;
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {
@@ -77,13 +102,55 @@ export default function Mixer({ mixer, title }) {
 
   return (
     <section className="mixer">
-      <div className="transport">
-        <button className="play primary" onClick={isPlaying ? pause : play}>
-          {isPlaying ? "Pause" : "Play"}
-        </button>
-        <span className="time mono">
-          {fmt(currentTime)} / {fmt(duration)}
-        </span>
+      <div className="puck">
+        {STEM_NAMES.map((name) => (
+          <div key={name} className={`slot slot--${ZONE_SLOT[name]}`}>
+            <StemTrack
+              name={name}
+              buffer={buffers[name]}
+              duration={duration}
+              settings={{ ...settings[name], anySolo }}
+              onVolume={setVolume}
+              onMute={setMute}
+              onSolo={setSolo}
+              onSeek={seek}
+              onPreview={previewTime}
+              registerTime={onTime}
+            />
+          </div>
+        ))}
+
+        <div className="hub">
+          <svg className="hub-svg" viewBox="0 0 100 100" aria-hidden="true">
+            <circle className="hub-track" cx="50" cy="50" r={HUB_R} />
+            <circle
+              ref={hubArcRef}
+              className="hub-arc"
+              cx="50"
+              cy="50"
+              r={HUB_R}
+              strokeDasharray={HUB_C}
+              strokeDashoffset={HUB_C}
+              transform="rotate(-90 50 50)"
+            />
+          </svg>
+          <div className="hub-face">
+            <button
+              className="hub-play"
+              onClick={() => {
+                tap();
+                if (isPlaying) pause();
+                else play();
+              }}
+              aria-label={isPlaying ? "Pause" : "Play"}
+            >
+              <span className="hub-glyph">{isPlaying ? "❙❙" : "▶"}</span>
+            </button>
+            <div className="hub-time mono">
+              {fmt(currentTime)} <span className="dim">/ {fmt(duration)}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div
@@ -100,24 +167,6 @@ export default function Mixer({ mixer, title }) {
       </div>
 
       {title && <div className="mixer-title mono">{title}</div>}
-
-      <div className="stems">
-        {STEM_NAMES.map((name) => (
-          <StemTrack
-            key={name}
-            name={name}
-            buffer={buffers[name]}
-            duration={duration}
-            settings={{ ...settings[name], anySolo }}
-            onVolume={setVolume}
-            onMute={setMute}
-            onSolo={setSolo}
-            onSeek={seek}
-            onPreview={previewTime}
-            registerTime={onTime}
-          />
-        ))}
-      </div>
     </section>
   );
 }

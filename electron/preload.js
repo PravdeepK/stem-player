@@ -40,6 +40,12 @@ contextBridge.exposeInMainWorld("api", {
   readStemFile: (filePath) => ipcRenderer.invoke("stems:read", filePath),
 
   /**
+   * Fire a trackpad haptic tap. Fire-and-forget — never awaited, never throws.
+   * @param {"generic"|"level"|"alignment"} pattern
+   */
+  haptic: (pattern) => ipcRenderer.send("haptics:tap", pattern),
+
+  /**
    * Subscribe to progress updates (0.0 - 1.0).
    * Returns an unsubscribe function.
    */

@@ -237,6 +237,29 @@ ipcMain.handle("stems:read", async (_event, filePath) => {
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
 });
 
+// --- IPC: trackpad haptics --------------------------------------------
+// The native addon is optional: if it was never built (or fails to load) the
+// app runs exactly as before, minus the taps. Never let this break startup.
+let haptics = null;
+try {
+  haptics = require("../native/haptics/build/Release/haptics.node");
+} catch (err) {
+  console.log("[haptics] native module unavailable, taps disabled:", err.message);
+}
+
+const HAPTIC_PATTERNS = new Set(["generic", "level", "alignment"]);
+
+// Fire-and-forget (`send`, not `invoke`) so a tap never adds latency to the
+// click that triggered it.
+ipcMain.on("haptics:tap", (_event, pattern) => {
+  if (!haptics) return;
+  try {
+    haptics.perform(HAPTIC_PATTERNS.has(pattern) ? pattern : "generic");
+  } catch {
+    /* a failed tap is never worth surfacing */
+  }
+});
+
 // --- IPC: run separation ---------------------------------------------
 ipcMain.handle("separation:start", async (_event, args) => {
   const inputPath = args && args.inputPath;
