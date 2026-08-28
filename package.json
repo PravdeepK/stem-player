@@ -1,0 +1,25 @@
+{
+  "name": "stem-player",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Personal, non-commercial local stem separation app (Phase 1: separation pipeline only)",
+  "main": "electron/main.js",
+  "scripts": {
+    "next:dev": "next dev -p 3000",
+    "next:build": "next build",
+    "electron": "cross-env ELECTRON_RUN_AS_NODE= electron .",
+    "dev": "concurrently -k -n next,electron -c blue,magenta \"npm:next:dev\" \"wait-on tcp:127.0.0.1:3000 && cross-env ELECTRON_RUN_AS_NODE= ELECTRON_START_URL=http://localhost:3000 electron .\"",
+    "start": "npm run next:build && cross-env ELECTRON_RUN_AS_NODE= electron ."
+  },
+  "dependencies": {
+    "next": "^14.2.35",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "concurrently": "8.2.2",
+    "cross-env": "7.0.3",
+    "electron": "31.3.1",
+    "wait-on": "7.2.0"
+  }
+}
