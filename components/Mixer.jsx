@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { STEM_NAMES } from "../hooks/useAudioMixer";
 import { tap } from "../lib/haptics";
 import StemTrack from "./StemTrack";
+import StemRow from "./StemRow";
 
 // Four stem pods arranged around a shared transport hub, inside a circular
 // shell. Grid positions are fixed per stem so the zones stay put:
@@ -167,6 +168,24 @@ export default function Mixer({ mixer, title }) {
       </div>
 
       {title && <div className="mixer-title mono">{title}</div>}
+
+      <div className="stems">
+        {STEM_NAMES.map((name) => (
+          <StemRow
+            key={name}
+            name={name}
+            buffer={buffers[name]}
+            duration={duration}
+            settings={{ ...settings[name], anySolo }}
+            onVolume={setVolume}
+            onMute={setMute}
+            onSolo={setSolo}
+            onSeek={seek}
+            onPreview={previewTime}
+            registerTime={onTime}
+          />
+        ))}
+      </div>
     </section>
   );
 }
