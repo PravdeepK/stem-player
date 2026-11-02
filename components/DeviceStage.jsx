@@ -23,7 +23,8 @@ import { detentOnEndpoint, tap } from "../lib/haptics";
 const JUMP_SECONDS = 10;
 const VOLUME_STEP = 0.1;
 
-const HINT = "Drag to turn · drag a groove for volume · tap to mute · hold its end to solo";
+const HINT =
+  "Drag to turn · double-tap the background to reset · drag a groove for volume · tap to mute · hold its end to solo";
 const PART_HINTS = {
   Btn_Center: "Play / pause",
   Btn_Volume: "Master volume",
@@ -42,7 +43,7 @@ function ledLevels(settings, isLoaded) {
   return levels;
 }
 
-export default function DeviceStage({ mixer, applyVolume, onLoadPress, onUnavailable }) {
+export default function DeviceStage({ mixer, busy, applyVolume, onLoadPress, onUnavailable }) {
   const { isLoaded, isPlaying, settings, masterVolume, onTime } = mixer;
 
   const canvasRef = useRef(null);
@@ -158,7 +159,7 @@ export default function DeviceStage({ mixer, applyVolume, onLoadPress, onUnavail
   const act = actionsRef.current;
 
   let caption = HINT;
-  if (!isLoaded) caption = "Open the menu to load a song";
+  if (!isLoaded) caption = busy ? "" : "Open the menu to load a song";
   if (hover) {
     caption = STEM_NAMES.includes(hover)
       ? `${hover} · drag, tap to mute, hold outer end to solo`

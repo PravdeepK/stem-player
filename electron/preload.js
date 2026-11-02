@@ -6,25 +6,33 @@ contextBridge.exposeInMainWorld("api", {
   /** Open the native file picker. Resolves to an absolute path or null. */
   pickFile: () => ipcRenderer.invoke("dialog:pickFile"),
 
-  /** Open the native folder picker. Resolves to an absolute path or null. */
-  pickFolder: () => ipcRenderer.invoke("dialog:pickFolder"),
-
-  /** The remembered output base folder (falls back to ~/Music, then ~). */
-  getOutputBase: () => ipcRenderer.invoke("config:outputBase"),
-
   /** The remembered separation model ("htdemucs" | "htdemucs_ft"). */
   getModel: () => ipcRenderer.invoke("config:model"),
 
   /**
-   * Start separation.
+   * Separate a song into the private cache, or return it if it's already there.
    * @param {string} inputPath  absolute path to the audio file
-   * @param {string} outputBase absolute path to the folder stems go under
    * @param {string} model      "htdemucs" | "htdemucs_ft"
-   * Resolves to { ok: true, stems, songDir, stemsDir, originalCopy }
+   * Resolves to { ok: true, entry: { id, title, model, stems } }
    *          or { ok: false, message }.
    */
-  separate: (inputPath, outputBase, model) =>
-    ipcRenderer.invoke("separation:start", { inputPath, outputBase, model }),
+  separate: (inputPath, model) =>
+    ipcRenderer.invoke("separation:start", { inputPath, model }),
+
+  /** This song's cached entry for a model, or null. */
+  findCached: (inputPath, model) => ipcRenderer.invoke("cache:find", inputPath, model),
+
+  /** Every cached song, most recently used first. */
+  listRecent: () => ipcRenderer.invoke("cache:recent"),
+
+  /** A cached song by id, or null if it has been removed. */
+  openRecent: (id) => ipcRenderer.invoke("cache:open", id),
+
+  /**
+   * Pick a folder and copy a song's stems into a new folder inside it.
+   * Resolves to { ok: true, dir } or { ok: false, canceled } / { ok: false, message }.
+   */
+  exportStems: (stems, title) => ipcRenderer.invoke("stems:export", stems, title),
 
   /** Reveal a file or folder in Finder. */
   showItem: (targetPath) => ipcRenderer.invoke("shell:showItem", targetPath),

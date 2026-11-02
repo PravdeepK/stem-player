@@ -4,6 +4,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn, spawnSync } = require("child_process");
+const { createStemCache } = require("./stemCache");
 
 // Load .env from the project root (optional). Values there populate
 // process.env, which the Python subprocess inherits (e.g. HF_TOKEN).
@@ -12,6 +13,8 @@ require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 const isDev = !!process.env.ELECTRON_START_URL;
 const SEPARATE_SCRIPT = path.join(__dirname, "..", "python", "separate.py");
 const SUPPORTED_EXTS = new Set([".mp3", ".wav", ".flac", ".m4a", ".mp4"]);
+// About a dozen songs at roughly 170 MB of WAV each.
+const MAX_CACHE_BYTES = 2 * 1024 * 1024 * 1024;
 
 // --- locate a Python interpreter that actually has demucs ----------------
 // A conda base env on PATH means a bare `python3` often resolves to one
@@ -58,10 +61,12 @@ function resolvePython() {
 let mainWindow = null;
 /** Track the in-flight separation so we never run two at once. */
 let activeJob = null;
+let stemCache = null;
 
 // --- tiny persisted config ------------------------------------------------
-// Stores { lastOutputDir } in userData/config.json so the folder picker can
-// default to wherever the user last saved stems.
+// Stores { lastExportDir, lastModel } in userData/config.json so the pickers can
+// default to wherever the user last put stems. lastOutputDir is from before the
+// cache, and still points at any stems made back then.
 function configPath() {
   return path.join(app.getPath("userData"), "config.json");
 }
@@ -83,9 +88,11 @@ function writeConfig(patch) {
   }
 }
 
-function defaultOutputBase() {
-  const saved = readConfig().lastOutputDir;
-  if (saved && fs.existsSync(saved)) return saved;
+function defaultStemsFolder() {
+  const config = readConfig();
+  for (const saved of [config.lastExportDir, config.lastOutputDir]) {
+    if (saved && fs.existsSync(saved)) return saved;
+  }
   try {
     return app.getPath("music");
   } catch {
@@ -119,10 +126,16 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  stemCache = createStemCache(path.join(app.getPath("userData"), "stem-cache"), MAX_CACHE_BYTES);
+  stemCache.clearTemp();
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on("before-quit", () => {
+  if (activeJob) activeJob.kill();
 });
 
 app.on("window-all-closed", () => {
@@ -132,29 +145,13 @@ app.on("window-all-closed", () => {
 // --- IPC: pick an audio file --------------------------------------------
 ipcMain.handle("dialog:pickFile", async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: "Select an audio file",
+    title: "Choose a song",
     properties: ["openFile"],
     filters: [{ name: "Audio", extensions: ["mp3", "wav", "flac", "m4a", "mp4"] }],
   });
   if (result.canceled || result.filePaths.length === 0) return null;
   return result.filePaths[0];
 });
-
-// --- IPC: pick the output folder --------------------------------------
-ipcMain.handle("dialog:pickFolder", async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
-    title: "Choose where to save stems",
-    defaultPath: defaultOutputBase(),
-    properties: ["openDirectory", "createDirectory"],
-  });
-  if (result.canceled || result.filePaths.length === 0) return null;
-  const chosen = result.filePaths[0];
-  writeConfig({ lastOutputDir: chosen });
-  return chosen;
-});
-
-// --- IPC: current remembered output folder ---------------------------
-ipcMain.handle("config:outputBase", async () => defaultOutputBase());
 
 // --- separation model ------------------------------------------------
 const ALLOWED_MODELS = new Set(["htdemucs", "htdemucs_ft"]);
@@ -207,11 +204,56 @@ function resolveStemsFolder(dir) {
   return null;
 }
 
-// Pick a folder + resolve it in one call (used by the "Load stems folder" button).
+// --- IPC: the private stem cache -----------------------------------------
+ipcMain.handle("cache:find", async (_event, inputPath, model) => {
+  if (typeof inputPath !== "string" || !ALLOWED_MODELS.has(model)) return null;
+  try {
+    return stemCache.touch(await stemCache.idFor(inputPath, model));
+  } catch (err) {
+    console.error("[cache] lookup failed:", err);
+    return null;
+  }
+});
+
+ipcMain.handle("cache:recent", async () => stemCache.list());
+
+ipcMain.handle("cache:open", async (_event, id) => stemCache.touch(String(id)));
+
+// Copy a song's stems somewhere permanent. Always a new folder, so an export can
+// never replace anything already there.
+ipcMain.handle("stems:export", async (_event, stems, title) => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Choose where to export the stems",
+    defaultPath: defaultStemsFolder(),
+    buttonLabel: "Export Here",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (result.canceled || result.filePaths.length === 0) return { ok: false, canceled: true };
+  const base = result.filePaths[0];
+  writeConfig({ lastExportDir: base });
+
+  const name = path.basename(String(title)) || "stems";
+  let dir = path.join(base, name);
+  for (let n = 2; fs.existsSync(dir); n++) dir = path.join(base, `${name} (${n})`);
+
+  try {
+    fs.mkdirSync(dir);
+    for (const stem of STEM_NAMES) {
+      await fs.promises.copyFile(stems[stem], path.join(dir, `${stem}.wav`));
+    }
+    return { ok: true, dir };
+  } catch (err) {
+    console.error("[export] failed:", err);
+    fs.rmSync(dir, { recursive: true, force: true });
+    return { ok: false, message: "Couldn't export the stems." };
+  }
+});
+
+// Pick a folder + resolve it in one call (used by "Open stems folder").
 ipcMain.handle("dialog:pickStemsFolder", async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: "Select a folder containing the 4 stems",
-    defaultPath: defaultOutputBase(),
+    defaultPath: defaultStemsFolder(),
     properties: ["openDirectory"],
   });
   if (result.canceled || result.filePaths.length === 0) return { ok: false, canceled: true };
@@ -275,7 +317,6 @@ ipcMain.on("haptics:tap", (_event, pattern) => {
 // --- IPC: run separation ---------------------------------------------
 ipcMain.handle("separation:start", async (_event, args) => {
   const inputPath = args && args.inputPath;
-  const outputBase = args && args.outputBase;
   const model = ALLOWED_MODELS.has(args && args.model) ? args.model : DEFAULT_MODEL;
 
   if (activeJob) {
@@ -294,9 +335,15 @@ ipcMain.handle("separation:start", async (_event, args) => {
     };
   }
 
-  if (typeof outputBase !== "string" || outputBase.length === 0) {
-    return { ok: false, message: "No output folder chosen." };
+  let id;
+  try {
+    id = await stemCache.idFor(inputPath, model);
+  } catch (err) {
+    console.error("[separation] could not read the file:", err);
+    return { ok: false, message: "Could not read that file." };
   }
+  const cached = stemCache.touch(id);
+  if (cached) return { ok: true, entry: cached };
 
   const python = resolvePython();
   if (!python) {
@@ -312,28 +359,17 @@ ipcMain.handle("separation:start", async (_event, args) => {
     };
   }
 
-  const songName = path.basename(inputPath, ext);
+  const title = path.basename(inputPath, ext);
 
-  let songDir;
   let stemsDir;
-  let originalCopy;
   try {
-    fs.mkdirSync(outputBase, { recursive: true });
-    songDir = path.join(outputBase, songName);
-    // Overwrite any existing folder for this song to avoid duplicates.
-    fs.rmSync(songDir, { recursive: true, force: true });
-    stemsDir = path.join(songDir, "stems");
-    fs.mkdirSync(stemsDir, { recursive: true });
-    // Copy the source file alongside the stems/ folder.
-    originalCopy = path.join(songDir, `${songName}${ext}`);
-    fs.copyFileSync(inputPath, originalCopy);
+    stemsDir = stemCache.begin(id);
   } catch (err) {
-    console.error("[separation] failed to prepare output folder:", err);
-    return { ok: false, message: "Could not create the output folder." };
+    console.error("[separation] failed to prepare the cache:", err);
+    return { ok: false, message: "Could not prepare a place for the stems." };
   }
 
-  // Remember the base folder + model choice for next time.
-  writeConfig({ lastOutputDir: outputBase, lastModel: model });
+  writeConfig({ lastModel: model });
 
   return await new Promise((resolve) => {
     let child;
@@ -343,6 +379,7 @@ ipcMain.handle("separation:start", async (_event, args) => {
       });
     } catch (err) {
       console.error("[separation] failed to spawn python:", err);
+      stemCache.abandon(id);
       resolve({ ok: false, message: "Could not start the separation process." });
       return;
     }
@@ -391,16 +428,13 @@ ipcMain.handle("separation:start", async (_event, args) => {
       }
 
       if (resultMessage && resultMessage.type === "done") {
-        resolve({
-          ok: true,
-          stems: resultMessage.stems,
-          songDir,
-          stemsDir,
-          originalCopy,
-        });
+        const entry = stemCache.commit(id, title, model);
+        stemCache.prune(id);
+        resolve({ ok: true, entry });
         return;
       }
 
+      stemCache.abandon(id);
       const detail =
         (resultMessage && resultMessage.message) ||
         `Separation process exited with code ${code}.`;

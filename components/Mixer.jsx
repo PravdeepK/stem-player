@@ -5,8 +5,8 @@ import DeviceStage from "./DeviceStage";
 import StemRow from "./StemRow";
 
 // The device fills the window, with only the transport under it. Everything
-// else lives in the slide-out menu. The menu doesn't block the device, so stems
-// can be mixed by hand while their waveforms are open beside it.
+// else lives in the slide-out menu, which opens over the device without moving
+// it, and leaves the device usable so stems can be mixed with the waveforms open.
 
 function fmt(t) {
   if (!isFinite(t) || t < 0) t = 0;
@@ -15,7 +15,17 @@ function fmt(t) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export default function Mixer({ mixer, title, menu, menuOpen, onMenuToggle, onMenuOpen, onMenuClose }) {
+export default function Mixer({
+  mixer,
+  title,
+  activity,
+  menu,
+  stemsActions,
+  menuOpen,
+  onMenuToggle,
+  onMenuOpen,
+  onMenuClose,
+}) {
   const {
     isLoaded,
     currentTime,
@@ -98,6 +108,7 @@ export default function Mixer({ mixer, title, menu, menuOpen, onMenuToggle, onMe
     <section className="mixer">
       <DeviceStage
         mixer={mixer}
+        busy={!!activity}
         applyVolume={applyVolume}
         onLoadPress={onMenuToggle}
         onUnavailable={onDeviceUnavailable}
@@ -106,7 +117,7 @@ export default function Mixer({ mixer, title, menu, menuOpen, onMenuToggle, onMe
       <div className="transport">
         <div className="readout mono">
           <span className="readout-title" title={title}>
-            {isLoaded && title ? title : "No song loaded"}
+            {activity || (isLoaded && title ? title : "No song loaded")}
           </span>
           <span>VOL {Math.round(masterVolume * 100)}</span>
           <span>
@@ -138,6 +149,7 @@ export default function Mixer({ mixer, title, menu, menuOpen, onMenuToggle, onMe
 
         {isLoaded && buffers && (
           <div className={`stems ${deviceFailed ? "stems--fallback" : ""}`}>
+            {stemsActions}
             {STEM_NAMES.map((name) => (
               <StemRow
                 key={name}
