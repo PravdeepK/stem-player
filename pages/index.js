@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAudioMixer } from "../hooks/useAudioMixer";
 import Mixer from "../components/Mixer";
 
 // Phase 1: pick a file, run Demucs separation.
 // Phase 2: load the 4 stems into a Web Audio mixer (play / seek / vol / mute / solo).
+// Phase 3: the 3D device is the whole screen; loading and waveforms live in a
+// slide-out menu, opened from the hamburger or the device's plain edge button.
 
 const STATES = {
   IDLE: "idle",
@@ -35,6 +37,7 @@ export default function Home() {
   const [errorMsg, setErrorMsg] = useState("");
   const [loadNote, setLoadNote] = useState("");
   const [mixerTitle, setMixerTitle] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [model, setModel] = useState("htdemucs");
   // null = not yet checked, true/false = checked after mount (avoids SSR flash).
   const [hasApi, setHasApi] = useState(null);
@@ -43,6 +46,10 @@ export default function Home() {
   const [nowTs, setNowTs] = useState(0);
 
   const mixer = useAudioMixer();
+
+  const toggleMenu = useCallback(() => setMenuOpen((open) => !open), []);
+  const openMenu = useCallback(() => setMenuOpen(true), []);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   // Tick once a second while separating so the ETA counts down between the
   // (coarser) progress updates from the Python subprocess.
@@ -103,6 +110,7 @@ export default function Home() {
       setStatus(STATES.DONE);
       setMixerTitle(basename(res.songDir));
       await mixer.load(res.stems); // <-- shared load path
+      setMenuOpen(false);
     } else {
       setErrorMsg((res && res.message) || "Separation failed.");
       setStatus(STATES.ERROR);
@@ -120,6 +128,7 @@ export default function Home() {
     }
     setMixerTitle(basename(r.dir));
     await mixer.load(r.stems); // <-- same shared load path
+    setMenuOpen(false);
   }
 
   const busy = status === STATES.PROCESSING;
@@ -135,8 +144,11 @@ export default function Home() {
       : null;
   if (etaSec != null && etaSec >= 30) etaSec = Math.round(etaSec / 5) * 5;
 
-  return (
-    <main className="wrap">
+  const statusEmpty =
+    status === STATES.IDLE && mixer.isLoaded && !mixer.isLoading && !mixer.error;
+
+  const menu = (
+    <>
       <header className="head">
         <div className="title">STEM PLAYER</div>
         <div className="subtitle">Local separation · Demucs · CPU</div>
@@ -220,65 +232,79 @@ export default function Home() {
         {loadNote && <p className="err small">{loadNote}</p>}
       </section>
 
-      <section className="card status">
-        {status === STATES.IDLE && !mixer.isLoaded && (
-          <div className="dim">Idle — ready.</div>
-        )}
+      {!statusEmpty && (
+        <section className="card status">
+          {status === STATES.IDLE && !mixer.isLoaded && (
+            <div className="dim">Idle — ready.</div>
+          )}
 
-        {status === STATES.PROCESSING && (
-          <div>
+          {status === STATES.PROCESSING && (
+            <div>
+              <div className="statusline">
+                <span className="pill running">Processing</span>
+                <span className="mono">{pct}%</span>
+              </div>
+              <div className="bar">
+                <div className="bar-fill" style={{ width: `${pct}%` }} />
+              </div>
+              <div className="dim small" style={{ marginTop: 8 }}>
+                {fmtDur(elapsedSec)} elapsed
+                {etaSec != null
+                  ? ` · ~${fmtDur(etaSec)} left`
+                  : " · estimating…"}
+              </div>
+            </div>
+          )}
+
+          {status === STATES.ERROR && (
+            <div>
+              <span className="pill danger">Failed</span>
+              <p className="err">{errorMsg}</p>
+              <p className="dim small">
+                Underlying error logged to the console / DevTools.
+              </p>
+            </div>
+          )}
+
+          {status === STATES.DONE && result && (
+            <div>
+              <div className="statusline">
+                <span className="pill ok">Separated</span>
+                <button
+                  className="link"
+                  onClick={() => window.api && window.api.showItem(result.songDir)}
+                >
+                  Show in Finder
+                </button>
+              </div>
+              <div className="path-block mono" title={result.songDir}>
+                {result.songDir}
+              </div>
+            </div>
+          )}
+
+          {mixer.isLoading && (
             <div className="statusline">
-              <span className="pill running">Processing</span>
-              <span className="mono">{pct}%</span>
+              <span className="pill running">Loading stems…</span>
             </div>
-            <div className="bar">
-              <div className="bar-fill" style={{ width: `${pct}%` }} />
-            </div>
-            <div className="dim small" style={{ marginTop: 8 }}>
-              {fmtDur(elapsedSec)} elapsed
-              {etaSec != null
-                ? ` · ~${fmtDur(etaSec)} left`
-                : " · estimating…"}
-            </div>
-          </div>
-        )}
+          )}
+          {mixer.error && <p className="err">{mixer.error}</p>}
+        </section>
+      )}
+    </>
+  );
 
-        {status === STATES.ERROR && (
-          <div>
-            <span className="pill danger">Failed</span>
-            <p className="err">{errorMsg}</p>
-            <p className="dim small">
-              Underlying error logged to the console / DevTools.
-            </p>
-          </div>
-        )}
-
-        {status === STATES.DONE && result && (
-          <div>
-            <div className="statusline">
-              <span className="pill ok">Separated</span>
-              <button
-                className="link"
-                onClick={() => window.api && window.api.showItem(result.songDir)}
-              >
-                Show in Finder
-              </button>
-            </div>
-            <div className="path-block mono" title={result.songDir}>
-              {result.songDir}
-            </div>
-          </div>
-        )}
-
-        {mixer.isLoading && (
-          <div className="statusline">
-            <span className="pill running">Loading stems…</span>
-          </div>
-        )}
-        {mixer.error && <p className="err">{mixer.error}</p>}
-      </section>
-
-      {mixer.isLoaded && <Mixer mixer={mixer} title={mixerTitle} />}
+  return (
+    <main className="wrap">
+      <Mixer
+        mixer={mixer}
+        title={mixerTitle}
+        menu={menu}
+        menuOpen={menuOpen}
+        onMenuToggle={toggleMenu}
+        onMenuOpen={openMenu}
+        onMenuClose={closeMenu}
+      />
     </main>
   );
 }

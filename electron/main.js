@@ -95,8 +95,10 @@ function defaultOutputBase() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 720,
-    height: 620,
+    width: 1180,
+    height: 780,
+    minWidth: 720,
+    minHeight: 620,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -234,6 +236,16 @@ ipcMain.handle("stems:read", async (_event, filePath) => {
   if (stat.size > MAX_STEM_BYTES) throw new Error(`stem file too large: ${filePath}`);
   const buf = await fs.promises.readFile(filePath);
   // Return a tightly-sized ArrayBuffer (structured-clone friendly).
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+});
+
+// --- IPC: the 3D device model -------------------------------------------
+// Read here rather than fetched by the renderer: fetch() can't load file:// in
+// the static build, and this keeps one load path for dev and packaged runs.
+const DEVICE_MODEL_PATH = path.join(__dirname, "..", "assets", "models", "stem-player.glb");
+
+ipcMain.handle("device:readModel", async () => {
+  const buf = await fs.promises.readFile(DEVICE_MODEL_PATH);
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
 });
 

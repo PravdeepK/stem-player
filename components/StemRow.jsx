@@ -1,9 +1,10 @@
 import { tap } from "../lib/haptics";
-import { useStemVolume, useStemWaveform } from "../hooks/useStemControls";
+import { useStemWaveform } from "../hooks/useStemControls";
 
-// The original list-style presentation of a stem: label, full-width waveform,
-// then volume / mute / solo. Kept alongside the pod view — both read and write
-// the same mixer settings, so they stay in sync automatically.
+// One stem's waveform, level readout and scrub. The real device has no screen,
+// so this is where a stem's detail lives; volume, mute and solo are played on
+// the device itself. The range and M/S controls here are keyboard-only, and
+// become visible if the 3D device couldn't load (.stems--fallback).
 
 export default function StemRow({
   name,
@@ -17,12 +18,11 @@ export default function StemRow({
   onPreview,
   registerTime,
 }) {
-  const applyVolume = useStemVolume(name, settings.volume, onVolume);
   const { containerRef, playheadRef, waveHandlers } = useStemWaveform({
     buffer,
     duration,
-    height: 56,
-    colorVar: "--wave",
+    height: 72,
+    colorVar: "--zone",
     fallbackColor: "#4a4a4a",
     onSeek,
     onPreview,
@@ -31,10 +31,16 @@ export default function StemRow({
 
   const anySolo = settings.anySolo;
   const dimmed = (anySolo && !settings.solo) || (!anySolo && settings.muted);
+  const status = settings.solo ? "solo" : settings.muted ? "muted" : "";
 
   return (
-    <div className={`stem ${dimmed ? "dimmed" : ""}`}>
-      <div className="stem-label">{name}</div>
+    <div className={`stem stem--${name} ${dimmed ? "dimmed" : ""}`}>
+      <div className="stem-head">
+        <span className="stem-dot" aria-hidden="true" />
+        <span className="stem-label">{name}</span>
+        {status && <span className="stem-status mono">{status}</span>}
+        <span className="stem-value mono">{Math.round(settings.volume * 100)}</span>
+      </div>
 
       <div className="wave-wrap" {...waveHandlers}>
         <div ref={containerRef} className="wave" />
@@ -49,7 +55,7 @@ export default function StemRow({
           max={1}
           step={0.01}
           value={settings.volume}
-          onChange={(e) => applyVolume(parseFloat(e.target.value))}
+          onChange={(e) => onVolume(name, parseFloat(e.target.value))}
           aria-label={`${name} volume`}
         />
         <button
@@ -58,7 +64,7 @@ export default function StemRow({
             tap();
             onMute(name, !settings.muted);
           }}
-          title="Mute"
+          aria-label={`Mute ${name}`}
           aria-pressed={settings.muted}
         >
           M
@@ -69,7 +75,7 @@ export default function StemRow({
             tap();
             onSolo(name, !settings.solo);
           }}
-          title="Solo"
+          aria-label={`Solo ${name}`}
           aria-pressed={settings.solo}
         >
           S

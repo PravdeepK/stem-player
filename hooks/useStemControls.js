@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useRef } from "react";
 import { detentOnEndpoint } from "../lib/haptics";
 
-// Shared per-stem logic, used by both presentations of a stem (the round pod
-// and the original list row). Keeping it here means the two views can't drift
-// apart, and — via PEAKS_CACHE below — that showing a stem twice doesn't cost
-// twice the analysis.
+// Per-stem logic shared by the 3D device and the waveform rows, so the two
+// surfaces can't drift apart.
 
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
 
 // Peak extraction walks every sample, so it's the expensive part of mounting a
-// waveform. Cache per AudioBuffer: both views of a stem share one result, and
+// waveform. Cache per AudioBuffer: rows remount when the load panel closes, and
 // the entries disappear with the buffers when new stems are loaded.
 const PEAKS_CACHE = new WeakMap();
 
@@ -43,23 +41,25 @@ function computePeaks(audioBuffer, buckets = 1200) {
 }
 
 /**
- * Volume writes with an endpoint detent. Returns `applyVolume(next)`, which
- * clamps, skips no-op writes, and taps once when the value *arrives* at 0 or 1.
+ * Volume writes with an endpoint detent. Returns `applyVolume(name, next)`,
+ * which clamps, skips no-op writes, and taps once when a stem *arrives* at 0 or 1.
  */
-export function useStemVolume(name, volume, onVolume) {
-  const volumeRef = useRef(volume);
-  volumeRef.current = volume;
+export function useStemVolumes(settings, onVolume) {
+  const volumesRef = useRef({});
+  for (const [name, stem] of Object.entries(settings)) {
+    volumesRef.current[name] = stem.volume;
+  }
 
   return useCallback(
-    (next) => {
-      const prev = volumeRef.current;
+    (name, next) => {
+      const prev = volumesRef.current[name];
       const v = clamp01(next);
       if (v === prev) return;
       detentOnEndpoint(prev, v);
-      volumeRef.current = v;
+      volumesRef.current[name] = v;
       onVolume(name, v);
     },
-    [name, onVolume]
+    [onVolume]
   );
 }
 

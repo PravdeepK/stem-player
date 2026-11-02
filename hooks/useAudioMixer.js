@@ -6,6 +6,10 @@ export const STEM_NAMES = ["vocals", "drums", "bass", "instrumental"];
 
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 
+// 4 stems reconstruct a near-0 dBFS master, so summing them at unity clips on
+// transients. The master bus never rises above this, ~6 dB down.
+const HEADROOM = 0.5;
+
 function emptySettings() {
   const out = {};
   for (const n of STEM_NAMES) out[n] = { volume: 1, muted: false, solo: false };
@@ -38,6 +42,7 @@ export function useAudioMixer() {
   const rafRef = useRef(0);
   const lastPushRef = useRef(0);
   const settingsRef = useRef(emptySettings());
+  const masterVolumeRef = useRef(1);
   const timeListenersRef = useRef(new Set());
   const loadTokenRef = useRef(0); // guards against overlapping load() calls
 
@@ -48,6 +53,7 @@ export function useAudioMixer() {
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState("");
   const [settings, setSettings] = useState(settingsRef.current);
+  const [masterVolume, setMasterVolumeState] = useState(1);
   const [buffers, setBuffers] = useState(null); // name -> AudioBuffer, for waveforms
 
   const getCtx = () => {
@@ -227,6 +233,18 @@ export function useAudioMixer() {
     []
   );
 
+  const setMasterVolume = useCallback((v) => {
+    const next = clamp(v, 0, 1);
+    masterVolumeRef.current = next;
+    setMasterVolumeState(next);
+    const ctx = ctxRef.current;
+    const master = masterRef.current;
+    if (!ctx || !master) return;
+    const t = ctx.currentTime;
+    master.gain.setTargetAtTime(HEADROOM * next, t, 0.012);
+    if (next === 0) master.gain.setValueAtTime(0, t + 0.09);
+  }, []);
+
   const onTime = useCallback((cb) => {
     timeListenersRef.current.add(cb);
     cb(positionNow());
@@ -287,10 +305,8 @@ export function useAudioMixer() {
             /* noop */
           }
         }
-        // Master headroom bus: 4 stems reconstruct a near-0 dBFS master, so
-        // summing them at unity clips on transients. Pull the bus down ~6 dB.
         const master = ctx.createGain();
-        master.gain.value = 0.5;
+        master.gain.value = HEADROOM * masterVolumeRef.current;
         master.connect(ctx.destination);
         masterRef.current = master;
 
@@ -343,6 +359,7 @@ export function useAudioMixer() {
     duration,
     error,
     settings,
+    masterVolume,
     buffers,
     load,
     play,
@@ -352,6 +369,7 @@ export function useAudioMixer() {
     setVolume,
     setMute,
     setSolo,
+    setMasterVolume,
     onTime,
   };
 }

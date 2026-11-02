@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld("api", {
   /** Read one stem .wav as an ArrayBuffer (for decodeAudioData). */
   readStemFile: (filePath) => ipcRenderer.invoke("stems:read", filePath),
 
+  /** Read the 3D device model (.glb) as an ArrayBuffer. */
+  readDeviceModel: () => ipcRenderer.invoke("device:readModel"),
+
   /**
    * Fire a trackpad haptic tap. Fire-and-forget — never awaited, never throws.
    * @param {"generic"|"level"|"alignment"} pattern
