@@ -77,6 +77,17 @@ contextBridge.exposeInMainWorld("api", {
   },
 
   /**
+   * Called with "engine" when a separation first has to download the stem
+   * engine (progress then follows the download), and "separating" once it's
+   * done and progress restarts at 0 for the song. Returns an unsubscribe function.
+   */
+  onStage: (handler) => {
+    const listener = (_event, stage) => handler(stage);
+    ipcRenderer.on("separation:stage", listener);
+    return () => ipcRenderer.removeListener("separation:stage", listener);
+  },
+
+  /**
    * Subscribe to progress updates (0.0 - 1.0).
    * Returns an unsubscribe function.
    */

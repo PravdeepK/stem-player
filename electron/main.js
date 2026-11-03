@@ -1,11 +1,12 @@
 "use strict";
 
-const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
+const { app, BrowserWindow, Menu, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const { spawn, spawnSync } = require("child_process");
 const { createStemCache } = require("./stemCache");
+const { createStemEngine, formatSize, supportsMacOS, DOWNLOAD_BYTES, INSTALLED_BYTES } = require("./stemEngine");
 
 // Load .env from the project root (optional). Values there populate
 // process.env, which the Python subprocess inherits (e.g. HF_TOKEN).
@@ -20,12 +21,16 @@ const MAX_CACHE_BYTES = 2 * 1024 * 1024 * 1024;
 // --- locate a Python interpreter that actually has demucs ----------------
 // A conda base env on PATH means a bare `python3` often resolves to one
 // without demucs, so probe a list of candidates and cache the first that
-// can `import demucs`. STEM_PLAYER_PYTHON always wins if set.
+// can `import demucs`. STEM_PLAYER_PYTHON always wins if set, then the stem
+// engine (electron/stemEngine.js) once it has been downloaded.
 let resolvedPython = null;
+let stemEngine = null;
 
 function pythonCandidates() {
   const list = [];
   if (process.env.STEM_PLAYER_PYTHON) list.push(process.env.STEM_PLAYER_PYTHON);
+  const engine = stemEngine && stemEngine.python();
+  if (engine) list.push(engine);
   list.push(
     "python3",
     "/opt/homebrew/bin/python3",
@@ -38,12 +43,24 @@ function pythonCandidates() {
   return [...new Set(list)];
 }
 
+// The engine's Python runs with only its own packages and keeps model weights inside it.
+function pythonEnv(cmd) {
+  return stemEngine && cmd === stemEngine.python() ? stemEngine.env(process.env) : process.env;
+}
+
+/** Look again next time, after the engine is installed or removed. */
+function forgetPython() {
+  resolvedPython = null;
+  pythonProbe = null;
+}
+
 function resolvePython() {
   if (resolvedPython) return resolvedPython;
   for (const cand of pythonCandidates()) {
     try {
       const probe = spawnSync(cand, ["-c", "import demucs"], {
         timeout: 15000,
+        env: pythonEnv(cand),
       });
       if (probe.status === 0) {
         if (cand !== "python3") {
@@ -67,7 +84,7 @@ function exitCode(cmd, args) {
   return new Promise((resolve) => {
     let child;
     try {
-      child = spawn(cmd, args, { timeout: 30000 });
+      child = spawn(cmd, args, { timeout: 30000, env: pythonEnv(cmd) });
     } catch {
       resolve(null);
       return;
@@ -183,6 +200,117 @@ function createWindow() {
   });
 }
 
+// --- the stem engine ------------------------------------------------------
+// Downloaded the first time a Mac without its own Python makes stems, and
+// removable from the app menu to get the space back.
+function buildMenu() {
+  const appMenu = {
+    label: app.name,
+    submenu: [
+      { role: "about" },
+      { type: "separator" },
+      { id: "remove-engine", label: "Remove Stem Engine…", click: () => removeEngine() },
+      { type: "separator" },
+      { role: "services" },
+      { type: "separator" },
+      { role: "hide" },
+      { role: "hideOthers" },
+      { role: "unhide" },
+      { type: "separator" },
+      { role: "quit" },
+    ],
+  };
+  const template = [appMenu, { role: "fileMenu" }, { role: "editMenu" }, { role: "viewMenu" }, { role: "windowMenu" }];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  refreshMenu();
+}
+
+function refreshMenu() {
+  const menu = Menu.getApplicationMenu();
+  const item = menu && menu.getMenuItemById("remove-engine");
+  if (item) item.enabled = !activeJob && !!stemEngine.python();
+}
+
+async function removeEngine() {
+  if (activeJob || !stemEngine.python()) return;
+  const size = await stemEngine.size();
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: "warning",
+    message: "Remove the stem engine?",
+    detail:
+      `This frees ${formatSize(size)}. Songs you've already separated stay. ` +
+      "Making stems again will download the engine again.",
+    buttons: ["Remove", "Cancel"],
+    defaultId: 1,
+    cancelId: 1,
+  });
+  if (response !== 0 || activeJob) return;
+  const removal = stemEngine.remove();
+  forgetPython();
+  refreshMenu();
+  try {
+    await removal;
+  } catch (err) {
+    console.error("[engine] removal failed:", err);
+    dialog.showErrorBox("Couldn't remove the stem engine", String(err.message));
+  }
+  refreshMenu();
+}
+
+/**
+ * Ask to download the engine and install it, reporting through the separation
+ * progress bar. Resolves to { ok: true, python } or { ok: false, message }.
+ */
+async function offerEngine() {
+  if (!supportsMacOS(process.getSystemVersion())) {
+    return { ok: false, message: "Making stems needs macOS 14 or later." };
+  }
+  // Holds the job slot from the question on, so nothing else starts meanwhile.
+  const abort = new AbortController();
+  activeJob = { kill: () => abort.abort() };
+  refreshMenu();
+  const send = (channel, value) => mainWindow && mainWindow.webContents.send(channel, value);
+  try {
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      message: "Download the stem engine?",
+      detail:
+        `Making stems needs a one-time download of about ${formatSize(DOWNLOAD_BYTES)} ` +
+        `(Python, PyTorch and Demucs), which takes about ${formatSize(INSTALLED_BYTES)} on disk. ` +
+        "Each quality setting also downloads its model the first time it's used. " +
+        "You can remove the engine from the Stem Player menu.",
+      buttons: ["Download", "Cancel"],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response !== 0) return { ok: false, message: "Making stems needs the stem engine." };
+    if (abort.signal.aborted) return { ok: false, message: "Cancelled." };
+
+    send("separation:stage", "engine");
+    const python = await stemEngine.install({
+      signal: abort.signal,
+      onProgress: (value) => send("separation:progress", value),
+    });
+    console.log("[engine] installed:", python);
+    forgetPython();
+    send("separation:stage", "separating");
+    send("separation:progress", 0);
+    return { ok: true, python };
+  } catch (err) {
+    console.error("[engine] install failed:", err);
+    if (err.code === "ENGINE_NO_SPACE") {
+      return { ok: false, message: `The stem engine ${err.message} on your Mac.` };
+    }
+    return {
+      ok: false,
+      message: "Couldn't download the stem engine. Check your internet connection and try again.",
+    };
+  } finally {
+    activeJob = null;
+    refreshMenu();
+  }
+}
+
 app.whenReady().then(() => {
   // Packaged builds take the dock icon from build/icon.icns.
   if (process.platform === "darwin" && !app.isPackaged) {
@@ -190,6 +318,9 @@ app.whenReady().then(() => {
   }
   stemCache = createStemCache(path.join(app.getPath("userData"), "stem-cache"), MAX_CACHE_BYTES);
   stemCache.clearTemp();
+  stemEngine = createStemEngine(path.join(app.getPath("userData"), "stem-engine"));
+  stemEngine.clearLeftovers().catch((err) => console.error("[engine] cleanup failed:", err));
+  buildMenu();
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -244,14 +375,15 @@ function sysctl(key) {
 
 ipcMain.handle("system:profile", async () => {
   const chip = sysctl("machdep.cpu.brand_string");
-  const { gpu } = await probePython();
+  const { python, gpu } = await probePython();
   const saved = readConfig().lastProcessor;
   return {
     chip,
     // An Intel build under Rosetta still reports an Apple chip here.
     appleSilicon: process.arch === "arm64" || sysctl("sysctl.proc_translated") === "1",
     memoryGB: Math.round(os.totalmem() / 2 ** 30),
-    gpuSupported: gpu,
+    // With no Python yet, the stem engine it would download runs on the GPU.
+    gpuSupported: python ? gpu : supportsMacOS(process.getSystemVersion()),
     savedProcessor: saved === "gpu" || saved === "cpu" ? saved : null,
   };
 });
@@ -445,18 +577,12 @@ ipcMain.handle("separation:start", async (_event, args) => {
   const cached = stemCache.touch(id);
   if (cached) return { ok: true, entry: cached };
 
-  const python = resolvePython();
+  let python = resolvePython();
   if (!python) {
-    console.error(
-      "[separation] no Python interpreter with demucs found. Tried:",
-      pythonCandidates().join(", "),
-      "\nSet STEM_PLAYER_PYTHON to one that has it."
-    );
-    return {
-      ok: false,
-      message:
-        "Couldn't find a Python with demucs installed. Set STEM_PLAYER_PYTHON.",
-    };
+    console.log("[separation] no Python with demucs found, offering the stem engine. Tried:", pythonCandidates().join(", "));
+    const engine = await offerEngine();
+    if (!engine.ok) return engine;
+    python = engine.python;
   }
 
   const title = path.basename(inputPath, ext);
@@ -497,6 +623,7 @@ function runDemucs(python, inputPath, stemsDir, model, device) {
     try {
       child = spawn(python, [SEPARATE_SCRIPT, inputPath, stemsDir, model, device], {
         cwd: path.join(__dirname, ".."),
+        env: pythonEnv(python),
       });
     } catch (err) {
       resolve({ ok: false, detail: `could not start python: ${err.message}` });
@@ -504,6 +631,7 @@ function runDemucs(python, inputPath, stemsDir, model, device) {
     }
 
     activeJob = child;
+    refreshMenu();
     let stdoutBuf = "";
     let stderrBuf = "";
     let resultMessage = null; // {type:'done'|'error', ...}
@@ -542,6 +670,7 @@ function runDemucs(python, inputPath, stemsDir, model, device) {
 
     child.on("close", (code) => {
       activeJob = null;
+      refreshMenu();
       if (stderrBuf.trim()) {
         console.error("[separation] python stderr:\n" + stderrBuf.trim());
       }
