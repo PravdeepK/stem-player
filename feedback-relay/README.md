@@ -127,11 +127,11 @@ A `500 not_configured` means an env var is missing. Redeploy after adding it.
 
 ### 7. Point the app at it
 
-Put the real URL in `DEFAULT_FEEDBACK_URL` in
-[`electron/feedback/report.js`](../electron/feedback/report.js). It's marked
-`PLACEHOLDER`. Then build and ship the app. Until then, the app's form fails
-with "Couldn't reach the feedback server" and offers **Copy report** and
-**Open on GitHub instead**.
+`DEFAULT_FEEDBACK_URL` in [`electron/feedback/report.js`](../electron/feedback/report.js)
+holds the relay's URL, currently `https://stem-player-feedback.vercel.app/api/feedback`.
+If the relay ever moves, change it there and ship a new build. While the relay is
+unreachable, the app's form says "Couldn't reach the feedback server" and offers
+**Copy report** and **Open on GitHub instead**.
 
 ## API
 

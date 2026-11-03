@@ -5,8 +5,8 @@
 // here, so the tests can run it under plain node.
 const { LIMITS, validateReport, formatIssueBody, systemLines } = require("./issue");
 
-// PLACEHOLDER: the relay isn't deployed yet. Once it is, put its real URL here
-// (see feedback-relay/README.md). STEM_PLAYER_FEEDBACK_URL overrides it for testing.
+// The deployed relay (Vercel project stem-player-feedback, see feedback-relay/README.md).
+// STEM_PLAYER_FEEDBACK_URL overrides it for testing.
 const DEFAULT_FEEDBACK_URL = "https://stem-player-feedback.vercel.app/api/feedback";
 const CLIENT_HEADER = "X-Stem-Player-Key";
 // Must match the relay (feedback-relay/lib/relay.js). Public, so only a speed bump.
