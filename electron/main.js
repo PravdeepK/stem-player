@@ -3,6 +3,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const { spawn, spawnSync } = require("child_process");
 const { createStemCache } = require("./stemCache");
 
@@ -58,13 +59,47 @@ function resolvePython() {
   return null;
 }
 
+// Async twin of resolvePython for startup: it also asks whether this Mac's GPU
+// can run Demucs, and never blocks the window while torch imports.
+let pythonProbe = null;
+
+function exitCode(cmd, args) {
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn(cmd, args, { timeout: 30000 });
+    } catch {
+      resolve(null);
+      return;
+    }
+    child.on("error", () => resolve(null));
+    child.on("close", resolve);
+  });
+}
+
+function probePython() {
+  if (!pythonProbe) {
+    pythonProbe = (async () => {
+      const check =
+        "import sys, demucs, torch; sys.exit(0 if torch.backends.mps.is_available() else 3)";
+      for (const cand of pythonCandidates()) {
+        const code = await exitCode(cand, ["-c", check]);
+        if (code === 0 || code === 3) return { python: cand, gpu: code === 0 };
+      }
+      return { python: null, gpu: false };
+    })();
+  }
+  return pythonProbe;
+}
+
 let mainWindow = null;
 /** Track the in-flight separation so we never run two at once. */
 let activeJob = null;
+let quitting = false;
 let stemCache = null;
 
 // --- tiny persisted config ------------------------------------------------
-// Stores { lastExportDir, lastModel } in userData/config.json so the pickers can
+// Stores { lastExportDir, lastModel, lastProcessor } in userData/config.json so the pickers can
 // default to wherever the user last put stems. lastOutputDir is from before the
 // cache, and still points at any stems made back then.
 function configPath() {
@@ -135,6 +170,7 @@ app.whenReady().then(() => {
 });
 
 app.on("before-quit", () => {
+  quitting = true;
   if (activeJob) activeJob.kill();
 });
 
@@ -160,6 +196,27 @@ const DEFAULT_MODEL = "htdemucs";
 ipcMain.handle("config:model", async () => {
   const saved = readConfig().lastModel;
   return ALLOWED_MODELS.has(saved) ? saved : DEFAULT_MODEL;
+});
+
+// What the renderer needs to recommend settings for this Mac, plus the user's
+// own last choice, which wins over any recommendation.
+function sysctl(key) {
+  const out = spawnSync("sysctl", ["-n", key], { encoding: "utf8" });
+  return out.status === 0 ? out.stdout.trim() : "";
+}
+
+ipcMain.handle("system:profile", async () => {
+  const chip = sysctl("machdep.cpu.brand_string");
+  const { gpu } = await probePython();
+  const saved = readConfig().lastProcessor;
+  return {
+    chip,
+    // An Intel build under Rosetta still reports an Apple chip here.
+    appleSilicon: process.arch === "arm64" || sysctl("sysctl.proc_translated") === "1",
+    memoryGB: Math.round(os.totalmem() / 2 ** 30),
+    gpuSupported: gpu,
+    savedProcessor: saved === "gpu" || saved === "cpu" ? saved : null,
+  };
 });
 
 // --- IPC: reveal a file/folder in Finder ----------------------------
@@ -318,6 +375,7 @@ ipcMain.on("haptics:tap", (_event, pattern) => {
 ipcMain.handle("separation:start", async (_event, args) => {
   const inputPath = args && args.inputPath;
   const model = ALLOWED_MODELS.has(args && args.model) ? args.model : DEFAULT_MODEL;
+  const processor = args && args.processor === "cpu" ? "cpu" : "gpu";
 
   if (activeJob) {
     return { ok: false, message: "A separation is already running." };
@@ -325,6 +383,11 @@ ipcMain.handle("separation:start", async (_event, args) => {
 
   if (typeof inputPath !== "string" || !fs.existsSync(inputPath)) {
     return { ok: false, message: "File not found." };
+  }
+
+  // Making stems is Apple silicon only until the web version.
+  if (process.arch !== "arm64" && sysctl("sysctl.proc_translated") !== "1") {
+    return { ok: false, message: "Making stems needs a Mac with Apple silicon." };
   }
 
   const ext = path.extname(inputPath).toLowerCase();
@@ -369,18 +432,37 @@ ipcMain.handle("separation:start", async (_event, args) => {
     return { ok: false, message: "Could not prepare a place for the stems." };
   }
 
-  writeConfig({ lastModel: model });
+  writeConfig({ lastModel: model, lastProcessor: processor });
 
-  return await new Promise((resolve) => {
+  const useGpu = processor === "gpu" && (await probePython()).gpu;
+  let run = await runDemucs(python, inputPath, stemsDir, model, useGpu ? "mps" : "cpu");
+  if (!run.ok && useGpu && !quitting) {
+    console.error("[separation] GPU run failed, retrying on the CPU:", run.detail);
+    if (mainWindow) mainWindow.webContents.send("separation:fallback");
+    stemsDir = stemCache.begin(id);
+    run = await runDemucs(python, inputPath, stemsDir, model, "cpu");
+  }
+
+  if (run.ok) {
+    const entry = stemCache.commit(id, title, model);
+    stemCache.prune(id);
+    return { ok: true, entry };
+  }
+  stemCache.abandon(id);
+  console.error("[separation] failed:", run.detail);
+  return { ok: false, message: "Separation failed. See the console for details." };
+});
+
+/** One Demucs run. Resolves to { ok } or { ok: false, detail }. */
+function runDemucs(python, inputPath, stemsDir, model, device) {
+  return new Promise((resolve) => {
     let child;
     try {
-      child = spawn(python, [SEPARATE_SCRIPT, inputPath, stemsDir, model], {
+      child = spawn(python, [SEPARATE_SCRIPT, inputPath, stemsDir, model, device], {
         cwd: path.join(__dirname, ".."),
       });
     } catch (err) {
-      console.error("[separation] failed to spawn python:", err);
-      stemCache.abandon(id);
-      resolve({ ok: false, message: "Could not start the separation process." });
+      resolve({ ok: false, detail: `could not start python: ${err.message}` });
       return;
     }
 
@@ -428,21 +510,15 @@ ipcMain.handle("separation:start", async (_event, args) => {
       }
 
       if (resultMessage && resultMessage.type === "done") {
-        const entry = stemCache.commit(id, title, model);
-        stemCache.prune(id);
-        resolve({ ok: true, entry });
+        resolve({ ok: true });
         return;
       }
-
-      stemCache.abandon(id);
-      const detail =
-        (resultMessage && resultMessage.message) ||
-        `Separation process exited with code ${code}.`;
-      console.error("[separation] failed:", detail);
       resolve({
         ok: false,
-        message: "Separation failed. See the console for details.",
+        detail:
+          (resultMessage && resultMessage.message) ||
+          `Separation process exited with code ${code}.`,
       });
     });
   });
-});
+}

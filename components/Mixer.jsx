@@ -21,6 +21,7 @@ export default function Mixer({
   activity,
   menu,
   stemsActions,
+  bounce,
   menuOpen,
   onMenuToggle,
   onMenuOpen,
@@ -115,11 +116,11 @@ export default function Mixer({
       />
 
       <div className="transport">
-        <div className="readout mono">
+        <div className="readout">
           <span className="readout-title" title={title}>
-            {activity || (isLoaded && title ? title : "No song loaded")}
+            {activity || (isLoaded && title ? title : "No song")}
           </span>
-          <span>VOL {Math.round(masterVolume * 100)}</span>
+          <span className="dim">Volume {Math.round(masterVolume * 100)}%</span>
           <span>
             {fmt(currentTime)} <span className="dim">/ {fmt(duration)}</span>
           </span>
@@ -163,6 +164,9 @@ export default function Mixer({
                 onSeek={seek}
                 onPreview={previewTime}
                 registerTime={onTime}
+                onLevels={mixer.onLevels}
+                bounce={bounce}
+                active={menuOpen}
               />
             ))}
           </div>

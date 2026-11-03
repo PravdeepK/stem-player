@@ -22,14 +22,16 @@ function emptySettings() {
  * re-renders never touch or restart playback.
  *
  * Graph: AudioBufferSourceNode (per stem, recreated per play/seek)
- *          -> GainNode (per stem, persistent)
- *          -> AudioContext.destination
+ *          -> GainNode (per stem, persistent) -> master -> destination
+ *                \-> AnalyserNode (per stem, a tap for level meters only)
  * Sync: all 4 sources are scheduled with a single shared `start(when, offset)`.
  */
 export function useAudioMixer() {
   const ctxRef = useRef(null);
   const buffersRef = useRef({}); // name -> AudioBuffer
   const gainsRef = useRef({}); // name -> GainNode (persistent)
+  const analysersRef = useRef({}); // name -> AnalyserNode, after the gain
+  const levelBufRef = useRef(null);
   const masterRef = useRef(null); // headroom bus: stem gains -> master -> destination
   const sourcesRef = useRef({}); // name -> AudioBufferSourceNode (per play)
   const startTimeRef = useRef(0); // ctx.currentTime when the current segment was scheduled
@@ -44,6 +46,7 @@ export function useAudioMixer() {
   const settingsRef = useRef(emptySettings());
   const masterVolumeRef = useRef(1);
   const timeListenersRef = useRef(new Set());
+  const levelListenersRef = useRef(new Set());
   const loadTokenRef = useRef(0); // guards against overlapping load() calls
 
   const [isLoaded, setIsLoaded] = useState(false);
@@ -73,6 +76,28 @@ export function useAudioMixer() {
 
   const pushTime = (t) => {
     for (const cb of timeListenersRef.current) cb(t);
+  };
+
+  // Each stem's loudness after volume, mute and solo, as 0..1 on a dB scale.
+  // Measured after the gain, so a muted or soloed-out stem reads silent.
+  const pushLevels = (silent) => {
+    if (!levelListenersRef.current.size) return;
+    const levels = {};
+    for (const name of STEM_NAMES) {
+      const analyser = analysersRef.current[name];
+      if (silent || !analyser) {
+        levels[name] = 0;
+        continue;
+      }
+      if (!levelBufRef.current) levelBufRef.current = new Float32Array(analyser.fftSize);
+      const buf = levelBufRef.current;
+      analyser.getFloatTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+      const rms = Math.sqrt(sum / buf.length);
+      levels[name] = rms > 0 ? clamp((20 * Math.log10(rms) + 48) / 42, 0, 1) : 0;
+    }
+    for (const cb of levelListenersRef.current) cb(levels, silent);
   };
 
   // Effective gain per stem given volume + mute + solo.
@@ -143,6 +168,7 @@ export function useAudioMixer() {
 
     // While the user is dragging a seek control, let previewTime() own the
     // playhead visuals; the audio keeps playing underneath.
+    pushLevels(false);
     if (!scrubbingRef.current) {
       pushTime(clamped);
       const now = performance.now();
@@ -159,6 +185,7 @@ export function useAudioMixer() {
       setIsPlaying(false);
       setCurrentTime(0);
       pushTime(0);
+      pushLevels(true);
       rafRef.current = 0;
       return;
     }
@@ -186,6 +213,7 @@ export function useAudioMixer() {
     setIsPlaying(false);
     setCurrentTime(pos);
     pushTime(pos);
+    pushLevels(true);
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
@@ -243,6 +271,12 @@ export function useAudioMixer() {
     const t = ctx.currentTime;
     master.gain.setTargetAtTime(HEADROOM * next, t, 0.012);
     if (next === 0) master.gain.setValueAtTime(0, t + 0.09);
+  }, []);
+
+  /** Per-frame stem levels while playing; `stopped` is true once, when it stops. */
+  const onLevels = useCallback((cb) => {
+    levelListenersRef.current.add(cb);
+    return () => levelListenersRef.current.delete(cb);
   }, []);
 
   const onTime = useCallback((cb) => {
@@ -311,15 +345,21 @@ export function useAudioMixer() {
         masterRef.current = master;
 
         const nextGains = {};
+        const nextAnalysers = {};
         for (const name of STEM_NAMES) {
           const g = ctx.createGain();
           g.gain.value = settingsRef.current[name].volume;
           g.connect(master);
           nextGains[name] = g;
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 512;
+          g.connect(analyser);
+          nextAnalysers[name] = analyser;
         }
 
         buffersRef.current = nextBuffers;
         gainsRef.current = nextGains;
+        analysersRef.current = nextAnalysers;
         const dur = Math.max(...STEM_NAMES.map((n) => nextBuffers[n].duration));
         durationRef.current = dur;
 
@@ -371,5 +411,6 @@ export function useAudioMixer() {
     setSolo,
     setMasterVolume,
     onTime,
+    onLevels,
   };
 }

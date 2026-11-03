@@ -23,14 +23,17 @@ import { detentOnEndpoint, tap } from "../lib/haptics";
 const JUMP_SECONDS = 10;
 const VOLUME_STEP = 0.1;
 
-const HINT =
-  "Drag to turn · double-tap the background to reset · drag a groove for volume · tap to mute · hold its end to solo";
+// One short hint at a time: what's under the pointer, or else whatever is most
+// useful right now. Mac wording: click, not tap.
 const PART_HINTS = {
-  Btn_Center: "Play / pause",
-  Btn_Volume: "Master volume",
-  Btn_Dots: `Jump ${JUMP_SECONDS}s back / forward`,
-  Btn_Load: "Menu",
+  Btn_Center: ["Play/Pause"],
+  Btn_Volume: ["Volume", "Click − or +"],
+  Btn_Dots: ["Skip Back / Forward", `${JUMP_SECONDS} seconds`],
+  Btn_Load: ["Menu"],
 };
+const GROOVE_HINT = "Drag to change the volume, click to mute, hold the end to solo";
+
+const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function ledLevels(settings, isLoaded) {
   const anySolo = STEM_NAMES.some((n) => settings[n].solo);
@@ -52,6 +55,7 @@ export default function DeviceStage({ mixer, busy, applyVolume, onLoadPress, onU
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [hover, setHover] = useState(null);
+  const [turned, setTurned] = useState(false);
 
   useEffect(() => onTime((t) => (positionRef.current = t)), [onTime]);
 
@@ -125,6 +129,7 @@ export default function DeviceStage({ mixer, busy, applyVolume, onLoadPress, onU
           onGrooveDrag: (stem, volume) => act().drag(stem, volume),
           getStemVolume: (stem) => act().volumeOf(stem),
           onHover: setHover,
+          onTurned: setTurned,
         });
         if (disposed) {
           scene.dispose();
@@ -158,20 +163,25 @@ export default function DeviceStage({ mixer, busy, applyVolume, onLoadPress, onU
   };
   const act = actionsRef.current;
 
-  let caption = HINT;
-  if (!isLoaded) caption = busy ? "" : "Open the menu to load a song";
-  if (hover) {
-    caption = STEM_NAMES.includes(hover)
-      ? `${hover} · drag, tap to mute, hold outer end to solo`
-      : PART_HINTS[hover];
-  }
+  let caption = [isLoaded ? "Drag a groove to change a stem’s volume" : ""];
+  if (!isLoaded && !busy) caption = ["Open the menu to load a song"];
+  if (turned) caption = ["Double-click the background to reset"];
+  if (hover) caption = STEM_NAMES.includes(hover) ? [capitalize(hover), GROOVE_HINT] : PART_HINTS[hover];
+  const [captionTitle, captionDetail] = caption;
 
   return (
     <div className="stage">
       <canvas ref={canvasRef} className="stage-canvas" aria-hidden="true" />
 
-      <div className="stage-caption mono" aria-live="polite">
-        {failed ? "Couldn't load the 3D device. Volume controls moved to the list." : caption}
+      <div className="stage-caption" aria-live="polite">
+        {failed ? (
+          "Couldn’t load the 3D player. Its controls are in the menu."
+        ) : (
+          <>
+            {captionTitle}
+            {captionDetail && <span className="dim"> {captionDetail}</span>}
+          </>
+        )}
       </div>
 
       <div className="kbd-controls">

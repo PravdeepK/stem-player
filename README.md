@@ -3,7 +3,7 @@
 Personal, non-commercial Electron app.
 
 - **Phase 1** — load a local audio file, split it into 4 stems (vocals, drums,
-  bass, instrumental) with [Demucs] (`htdemucs` / `htdemucs_ft`, CPU-only).
+  bass, instrumental) with [Demucs] (`htdemucs` / `htdemucs_ft`, on the GPU or CPU).
   "instrumental" is
   Demucs' `other` stem, renamed.
 - **Phase 2** — load the 4 stems into a Web Audio mixer: synchronized
@@ -81,6 +81,19 @@ npm start
 
 Builds the Next.js static export into `out/` and launches Electron against it.
 
+## Requirements for making stems
+
+Making stems needs a Mac with Apple silicon (M-series). Other Macs can still open
+existing stems; wider support is planned for the web version.
+
+## GPU or CPU
+
+The menu offers **Processor: GPU / CPU**, with the GPU selected wherever this
+Mac's GPU can run Demucs; it was about 40% faster on Fast in testing, with no
+change in the stems. If a GPU run fails (for example, out of memory on a long
+song), it starts over on the CPU automatically. Your choice is remembered, and
+both processors share one cache.
+
 ## Where stems go
 
 Separated songs go in a private cache at `<userData>/stem-cache`, so there are no
@@ -88,7 +101,7 @@ folders to manage. A song is recognised by its audio, not its filename, and Fast
 and Best are stored separately, so opening a song you've already separated is
 instant. The oldest songs are deleted once the cache passes 2 GB.
 
-**Export stems** is the only thing that writes anywhere else. It copies a song's 4
+**Export Stems…** is the only thing that writes anywhere else. It copies a song's 4
 WAVs into a new folder, and never replaces an existing one:
 
 ```
@@ -103,18 +116,18 @@ WAVs into a new folder, and never replaces an existing one:
 ## Test it — separation (Phase 1)
 
 1. Launch with `npm run dev` and open the hamburger menu.
-2. Click **Choose a song…** and pick an audio file (mp3, wav, flac, m4a, mp4). If
+2. Click **Choose…** next to **Song** and pick an audio file (mp3, wav, flac, m4a, mp4). If
    it's already separated at this quality, it opens straight away.
 3. (Optional) Change the **Quality**.
 4. Click **Separate**. Progress shows in the menu and under the device, so you can
    close the menu while it runs.
 5. On success the menu closes and the 4 stems load into the mixer. The song is now
-   under **Recent songs**.
+   under **Recent**.
 
 ## Test it — mixer (Phase 2)
 
-- After a separation the stems auto-load. **Recent songs** reopens one instantly.
-  **Open stems folder…** loads any folder that contains
+- After a separation the stems auto-load. **Recent** reopens one instantly.
+  **Open Stems Folder…** loads any folder that contains
   `vocals/drums/bass/instrumental.wav` (a `stems/` subfolder or its parent both
   work; a legacy `other.wav` is accepted as the instrumental).
 - All 4 stems stay sample-synced (scheduled off one shared start time). Drag the
@@ -124,7 +137,7 @@ WAVs into a new folder, and never replaces an existing one:
 
 | Part | Action |
 | --- | --- |
-| Grooves | Drag for stem volume, hold the outer end to solo, tap to mute. Vocals top, drums right, instrumental bottom, bass left. |
+| Grooves | Drag for stem volume, hold the outer end to solo, click to mute. Vocals top, drums right, instrumental bottom, bass left. |
 | Centre button | Play / pause |
 | − / + pill | Master volume |
 | Dot pill | Jump 10 seconds back / forward |
@@ -135,7 +148,7 @@ folder, model and waveforms. It opens over the device without moving it, so you
 can keep mixing with it open.
 
 The device starts head-on. Press and drag to turn it, and it stays where you let
-go. Double-tap the background to bring it back. Where a press starts decides what
+go. Double-click the background to bring it back. Where a press starts decides what
 it does: on a groove it sets that stem's level, and anywhere else it turns the
 device. Head-on, the edge buttons sit on the outline, so turn the device to reach
 them comfortably. Every part also has a keyboard equivalent, which appears when

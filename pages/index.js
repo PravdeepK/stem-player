@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAudioMixer } from "../hooks/useAudioMixer";
 import Mixer from "../components/Mixer";
+import { PROCESSORS, QUALITY, canSeparate, chipName, recommend } from "../lib/recommend";
 
 // Phase 1: pick a file, run Demucs separation.
 // Phase 2: load the 4 stems into a Web Audio mixer (play / seek / vol / mute / solo).
@@ -14,11 +15,6 @@ const STATES = {
   PROCESSING: "processing",
   ERROR: "error",
 };
-
-const QUALITY = [
-  { model: "htdemucs", label: "Fast" },
-  { model: "htdemucs_ft", label: "Best", note: "about 4× slower" },
-];
 
 function basename(p) {
   if (!p) return "";
@@ -57,6 +53,11 @@ export default function Home() {
   const [exportNote, setExportNote] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [model, setModel] = useState("htdemucs");
+  const [processor, setProcessor] = useState("gpu");
+  const [mac, setMac] = useState(null); // system profile, null until probed
+  const [fellBack, setFellBack] = useState(false);
+  // Temporary: lets the user compare bounce styles before one is chosen.
+  const [bounce, setBounce] = useState("both");
   // null = not yet checked, true/false = checked after mount (avoids SSR flash).
   const [hasApi, setHasApi] = useState(null);
 
@@ -83,12 +84,25 @@ export default function Home() {
     if (!available) return;
 
     window.api.getModel().then((m) => m && setModel(m));
+    window.api.getSystemProfile().then((profile) => {
+      setMac(profile);
+      if (!canSeparate(profile)) return;
+      const preferred = profile.savedProcessor || recommend(profile).processor;
+      setProcessor(profile.gpuSupported ? preferred : "cpu");
+    });
     window.api.listRecent().then(setRecents);
 
-    const unsubscribe = window.api.onProgress((value) => {
+    const offProgress = window.api.onProgress((value) => {
       setProgress(typeof value === "number" ? value : 0);
     });
-    return unsubscribe;
+    const offFallback = window.api.onFallback(() => {
+      setFellBack(true);
+      setProgress(0);
+    });
+    return () => {
+      offProgress();
+      offFallback();
+    };
   }, []);
 
   async function openSong(next) {
@@ -119,10 +133,11 @@ export default function Home() {
     setNowTs(Date.now());
     setStatus(STATES.PROCESSING);
     setProgress(0);
+    setFellBack(false);
     setErrorMsg("");
     setLoadNote("");
 
-    const res = await window.api.separate(filePath, model);
+    const res = await window.api.separate(filePath, model, processor);
     if (res && res.ok) {
       setStatus(STATES.IDLE);
       await openSong(res.entry);
@@ -180,16 +195,28 @@ export default function Home() {
   }`;
 
   const qualityOf = (m) => QUALITY.find((q) => q.model === m);
+  const supported = !mac || canSeparate(mac);
+  const rec = mac && supported && recommend(mac);
 
   let activity = "";
-  if (busy) activity = `Separating ${basename(filePath)} · ${pct}%`;
+  if (busy) activity = `Separating “${basename(filePath)}”… ${pct}%`;
   else if (mixer.isLoading) activity = "Loading stems…";
+
+  // Settings-style groups: a label on the left, its control on the right, and
+  // at most one short footnote per group.
+  let footnote = "";
+  if (mac && supported) {
+    const chip = chipName(mac.chip);
+    if (!mac.gpuSupported) footnote = `Stems are made on the CPU, since the GPU on your ${chip} isn't available.`;
+    else if (model === rec.model && processor === rec.processor) footnote = `Recommended for your ${chip}.`;
+    else if (model === "htdemucs_ft") footnote = "Best is cleaner, but takes about four times as long.";
+    else footnote = "The CPU is slower than the GPU, and makes the same stems.";
+  }
 
   const menu = (
     <>
       <header className="head">
-        <div className="title">STEM PLAYER</div>
-        <div className="subtitle">Local separation · Demucs · CPU</div>
+        <h1 className="title">Stem Player</h1>
       </header>
 
       {hasApi === false && (
@@ -198,104 +225,156 @@ export default function Home() {
         </div>
       )}
 
-      <section className="card">
-        <div className="field">
-          <span className="field-label">Song</span>
-          {filePath ? (
-            <div className="field-row">
-              <span className="field-value" title={filePath}>
-                {basename(filePath)}
+      {supported ? (
+        <section className="section">
+          <div className="group">
+            <div className="group-row">
+              <span className="row-label">Song</span>
+              <span className="row-value" title={filePath || ""}>
+                {filePath ? basename(filePath) : <span className="dim">None</span>}
               </span>
-              <button onClick={handlePickFile} disabled={busy}>
-                Change
+              <button className="choose" onClick={handlePickFile} disabled={busy || !hasApi}>
+                Choose…
               </button>
+            </div>
+            <div className="group-row">
+              <span className="row-label">Quality</span>
+              <div className="segmented" role="radiogroup" aria-label="Quality">
+                {QUALITY.map((q) => (
+                  <button
+                    key={q.model}
+                    role="radio"
+                    aria-checked={model === q.model}
+                    className={model === q.model ? "on" : ""}
+                    disabled={busy}
+                    onClick={() => setModel(q.model)}
+                  >
+                    {q.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {mac && mac.gpuSupported && (
+              <div className="group-row">
+                <span className="row-label">Processor</span>
+                <div className="segmented" role="radiogroup" aria-label="Processor">
+                  {PROCESSORS.map((p) => (
+                    <button
+                      key={p.id}
+                      role="radio"
+                      aria-checked={processor === p.id}
+                      className={processor === p.id ? "on" : ""}
+                      disabled={busy}
+                      onClick={() => setProcessor(p.id)}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          {footnote && <p className="footnote">{footnote}</p>}
+
+          {busy ? (
+            <div className="progress" role="status">
+              <div className="progress-line">
+                <span>Separating…</span>
+                <span className="dim">{pct}%</span>
+              </div>
+              <div className="bar">
+                <div className="bar-fill" style={{ width: `${pct}%` }} />
+              </div>
+              <p className="footnote">
+                {fellBack ? "The GPU had a problem, so the CPU is finishing this song. " : ""}
+                {timing}
+              </p>
             </div>
           ) : (
-            <button className="pick" onClick={handlePickFile} disabled={!hasApi}>
-              Choose a song…
+            <button className="primary go" onClick={handleSeparate} disabled={!filePath}>
+              Separate
             </button>
           )}
-        </div>
 
-        <div className="field">
-          <span className="field-label">Quality</span>
-          <div className="quality" role="radiogroup" aria-label="Quality">
-            {QUALITY.map((q) => (
-              <button
-                key={q.model}
-                role="radio"
-                aria-checked={model === q.model}
-                className={model === q.model ? "on" : ""}
-                disabled={busy}
-                onClick={() => setModel(q.model)}
-              >
-                {q.label}
-              </button>
-            ))}
-          </div>
-          {qualityOf(model)?.note && <p className="field-note">{qualityOf(model).note}</p>}
-        </div>
-
-        {busy ? (
-          <div className="progress" role="status">
-            <div className="progress-line">
-              <span>Separating…</span>
-              <span className="mono">{pct}%</span>
-            </div>
-            <div className="bar">
-              <div className="bar-fill" style={{ width: `${pct}%` }} />
-            </div>
-            <p className="field-note">{timing}. You can close this menu.</p>
-          </div>
-        ) : (
-          <button className="primary go" onClick={handleSeparate} disabled={!filePath}>
-            Separate
-          </button>
-        )}
-
-        {status === STATES.ERROR && <p className="err">{errorMsg}</p>}
-      </section>
-
-      {recents.length > 0 && (
-        <section className="recents">
-          <div className="field-label">Recent songs</div>
-          {recents.map((r) => (
-            <button
-              key={r.id}
-              className="recent"
-              disabled={busy}
-              aria-current={song && song.id === r.id ? "true" : undefined}
-              onClick={() => handleOpenRecent(r.id)}
-            >
-              <span className="recent-title">{r.title}</span>
-              <span className="recent-quality mono">{qualityOf(r.model)?.label}</span>
-            </button>
-          ))}
-          <p className="field-note">
-            Older songs are removed automatically. Export a song to keep it.
+          {fellBack && !busy && status !== STATES.ERROR && (
+            <p className="footnote">The last song finished on the CPU after a GPU problem.</p>
+          )}
+          {status === STATES.ERROR && <p className="err">{errorMsg}</p>}
+        </section>
+      ) : (
+        <section className="section">
+          <p className="unsupported">
+            Making stems needs a Mac with Apple silicon. You can still open stems you
+            already have.
           </p>
         </section>
       )}
 
-      <button className="link open-stems" onClick={handleLoadStems} disabled={busy || !hasApi}>
-        Open stems folder…
-      </button>
-      {loadNote && <p className="err">{loadNote}</p>}
-      {mixer.error && <p className="err">{mixer.error}</p>}
+      {recents.length > 0 && (
+        <section className="section">
+          <h2 className="section-title">Recent</h2>
+          <div className="group">
+            {recents.map((r) => (
+              <button
+                key={r.id}
+                className="group-row recent"
+                disabled={busy}
+                aria-current={song && song.id === r.id ? "true" : undefined}
+                onClick={() => handleOpenRecent(r.id)}
+              >
+                <span className="row-value">{r.title}</span>
+                <span className="dim recent-quality">{qualityOf(r.model)?.label}</span>
+              </button>
+            ))}
+          </div>
+          <p className="footnote">Older songs are removed automatically. Export a song to keep it.</p>
+        </section>
+      )}
+
+      <section className="section">
+        <button className="secondary" onClick={handleLoadStems} disabled={busy || !hasApi}>
+          Open Stems Folder…
+        </button>
+        {loadNote && <p className="err">{loadNote}</p>}
+        {mixer.error && <p className="err">{mixer.error}</p>}
+      </section>
     </>
   );
 
   const stemsActions = (
     <>
       <div className="stems-head">
-        <span className="field-label">Stems</span>
-        <button className="link" onClick={handleExport}>
-          Export stems
+        <h2 className="section-title">Stems</h2>
+        <button className="secondary small" onClick={handleExport}>
+          Export Stems…
         </button>
       </div>
+      <div className="group bounce-preview">
+        <div className="group-row">
+          <span className="row-label">Bounce</span>
+          <div className="segmented" role="radiogroup" aria-label="Bounce">
+            {[
+              ["dot", "Dot"],
+              ["wave", "Waveform"],
+              ["both", "Both"],
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                role="radio"
+                aria-checked={bounce === id}
+                className={bounce === id ? "on" : ""}
+                onClick={() => setBounce(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <p className="footnote bounce-note">Temporary, for picking a style. Play a song to compare.</p>
       {exported && (
         <div className="notice">
-          <span title={exported}>Saved to {shortPath(exported)}</span>
+          <span title={exported}>Exported to {shortPath(exported)}</span>
           <button className="link" onClick={() => window.api.showItem(exported)}>
             Show in Finder
           </button>
@@ -313,6 +392,7 @@ export default function Home() {
         activity={activity}
         menu={menu}
         stemsActions={stemsActions}
+        bounce={bounce}
         menuOpen={menuOpen}
         onMenuToggle={toggleMenu}
         onMenuOpen={openMenu}

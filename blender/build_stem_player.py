@@ -94,7 +94,7 @@ USB_DEPTH = 5.0
 
 # --- printed block on the back -------------------------------------------
 # Set BACK_TEXT_ENABLED to False to leave the brand and regulatory marks off.
-BACK_TEXT_ENABLED = True
+BACK_TEXT_ENABLED = False
 BACK_LINES = (
     "YEEZY TECH \u00d7 KANO",
     "MODEL 1016",

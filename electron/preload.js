@@ -10,14 +10,21 @@ contextBridge.exposeInMainWorld("api", {
   getModel: () => ipcRenderer.invoke("config:model"),
 
   /**
+   * This Mac, for recommending settings. Resolves to
+   * { chip, appleSilicon, memoryGB, gpuSupported, savedProcessor: "gpu" | "cpu" | null }.
+   */
+  getSystemProfile: () => ipcRenderer.invoke("system:profile"),
+
+  /**
    * Separate a song into the private cache, or return it if it's already there.
    * @param {string} inputPath  absolute path to the audio file
    * @param {string} model      "htdemucs" | "htdemucs_ft"
+   * @param {string} processor  "gpu" | "cpu"; a failed GPU run retries on CPU
    * Resolves to { ok: true, entry: { id, title, model, stems } }
    *          or { ok: false, message }.
    */
-  separate: (inputPath, model) =>
-    ipcRenderer.invoke("separation:start", { inputPath, model }),
+  separate: (inputPath, model, processor) =>
+    ipcRenderer.invoke("separation:start", { inputPath, model, processor }),
 
   /** This song's cached entry for a model, or null. */
   findCached: (inputPath, model) => ipcRenderer.invoke("cache:find", inputPath, model),
@@ -55,6 +62,16 @@ contextBridge.exposeInMainWorld("api", {
    * @param {"generic"|"level"|"alignment"} pattern
    */
   haptic: (pattern) => ipcRenderer.send("haptics:tap", pattern),
+
+  /**
+   * Called when a GPU separation failed and is starting over on the CPU.
+   * Returns an unsubscribe function.
+   */
+  onFallback: (handler) => {
+    const listener = () => handler();
+    ipcRenderer.on("separation:fallback", listener);
+    return () => ipcRenderer.removeListener("separation:fallback", listener);
+  },
 
   /**
    * Subscribe to progress updates (0.0 - 1.0).

@@ -2,10 +2,11 @@
 """Thin Demucs wrapper for the Stem Player app (Phase 1).
 
 Usage:
-    python separate.py <input_audio_path> <output_dir> [model]
+    python separate.py <input_audio_path> <output_dir> [model] [device]
 
-[model] is "htdemucs" (default) or "htdemucs_ft". Runs on CPU and writes 4 stems
-(vocals, drums, bass, other) as WAV files into <output_dir>. Communicates with
+[model] is "htdemucs" (default) or "htdemucs_ft". [device] is "cpu" (default) or
+"mps" for the Apple GPU; the caller retries on CPU if an "mps" run fails. Writes
+4 stems (vocals, drums, bass, other) as WAV files into <output_dir>. Communicates with
 the Electron main process over
 stdout using newline-delimited JSON messages:
 
@@ -34,18 +35,23 @@ def log(*args):
 
 
 ALLOWED_MODELS = {"htdemucs", "htdemucs_ft"}
+ALLOWED_DEVICES = {"cpu", "mps"}
 
 
 def main():
-    if len(sys.argv) not in (3, 4):
-        emit({"type": "error", "message": "expected <input> <output_dir> [model]"})
+    if len(sys.argv) not in (3, 4, 5):
+        emit({"type": "error", "message": "expected <input> <output_dir> [model] [device]"})
         return 2
 
     input_path = os.path.abspath(sys.argv[1])
     output_dir = os.path.abspath(sys.argv[2])
-    model_name = sys.argv[3] if len(sys.argv) == 4 else "htdemucs"
+    model_name = sys.argv[3] if len(sys.argv) >= 4 else "htdemucs"
     if model_name not in ALLOWED_MODELS:
         emit({"type": "error", "message": f"unknown model: {model_name}"})
+        return 2
+    device = sys.argv[4] if len(sys.argv) == 5 else "cpu"
+    if device not in ALLOWED_DEVICES:
+        emit({"type": "error", "message": f"unknown device: {device}"})
         return 2
 
     if not os.path.isfile(input_path):
@@ -94,7 +100,7 @@ def main():
     try:
         separator = Separator(
             model=model_name,
-            device="cpu",
+            device=device,
             progress=False,
             callback=callback,
         )
