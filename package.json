@@ -16,6 +16,7 @@
     "test:e2e:gpu-fail": "npm run next:build && cross-env FAIL_GPU=1 ELECTRON_RUN_AS_NODE= electron test/e2e/run.js",
     "build:native": "node-gyp rebuild --directory=native/haptics --target=31.3.1 --dist-url=https://electronjs.org/headers",
     "icons": "node scripts/build-icons.mjs",
+    "readme:gif": "node scripts/render-readme-gif.mjs",
     "pack": "npm run icons && npm run next:build && electron-builder --mac --dir",
     "dist": "npm run icons && npm run next:build && electron-builder --mac",
     "release:mac": "npm run icons && npm run next:build && electron-builder --mac zip --arm64 --config.mac.identity=- --config.mac.hardenedRuntime=false"

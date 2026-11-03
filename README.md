@@ -1,246 +1,233 @@
-# Stem Player
+<h1 align="center">Stem Player</h1>
 
-Personal, non-commercial Electron app.
+<p align="center">
+  <img src="docs/media/stem-player.gif" width="440" alt="The 3D Stem Player tumbling in space, its four grooves lit in the stem colours">
+</p>
 
-- **Phase 1** — load a local audio file, split it into 4 stems (vocals, drums,
-  bass, instrumental) with [Demucs] (`htdemucs` / `htdemucs_ft`, on the GPU or CPU).
-  "instrumental" is
-  Demucs' `other` stem, renamed.
-- **Phase 2** — load the 4 stems into a Web Audio mixer: synchronized
-  play/pause/seek, per-stem volume / mute / solo, waveform per stem
-  (waveforms via wavesurfer.js, audio via the Web Audio graph).
-- **Phase 3** — a 3D recreation of the hardware is the control surface, drawn
-  live with three.js from a model built in Blender, turned by dragging it, with
-  trackpad haptics. Optional beat taps (menu → Haptics, off by default) tap
-  the trackpad on each drum hit, found ahead of time from the drums stem;
-  turning the volume down lets only the harder hits through.
+<p align="center">
+  <b>Split any song into vocals, drums, bass and instrumental, then remix it live on a 3D stem player.</b><br>
+  Everything runs on your Mac. Nothing is uploaded.
+</p>
 
-## Installing
+<p align="center">
+  <a href="https://github.com/PravdeepK/stem-player/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/PravdeepK/stem-player?style=flat-square&color=EC7646"></a>
+  <img alt="macOS on Apple silicon" src="https://img.shields.io/badge/macOS-Apple%20silicon-1F1D1C?style=flat-square&logo=apple&logoColor=white">
+  <img alt="Electron" src="https://img.shields.io/badge/Electron-31-47848F?style=flat-square&logo=electron&logoColor=white">
+  <img alt="three.js" src="https://img.shields.io/badge/three.js-3D-000000?style=flat-square&logo=threedotjs&logoColor=white">
+  <img alt="Demucs on PyTorch" src="https://img.shields.io/badge/Demucs-PyTorch-EE4C2C?style=flat-square&logo=pytorch&logoColor=white">
+</p>
 
-Needs a Mac with Apple silicon (M1 or later). Paste this into Terminal:
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#using-it">Using it</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#development">Development</a>
+</p>
+
+## Features
+
+- **Stems from any song.** Drop in an mp3, wav, flac, m4a or mp4 and [Demucs] splits it into
+  vocals, drums, bass and instrumental. It runs on the Apple GPU, and falls back to the CPU
+  automatically if a GPU run fails.
+- **A 3D recreation of the hardware as the mixer.** The device is modelled in Blender and
+  drawn live with three.js. Slide a groove to set a stem's level, tap to mute, hold the end to
+  solo, and drag the device to turn it in your hand.
+- **Sample-locked playback.** All four stems play from one shared clock in the Web Audio
+  graph, so they never drift, with seeking and a waveform per stem.
+- **Feel the beat.** Optional beat taps pulse the Force Touch trackpad on each drum hit, found
+  ahead of time from the drums stem. Turning the volume down lets only the harder hits through.
+- **Instant reopen.** Separated songs live in a private cache, recognised by their audio rather
+  than their filename, so a song you've done before opens straight away. **Export Stems…**
+  writes the four WAVs wherever you want them.
+
+## Install
+
+You need a Mac with Apple silicon (M1 or later). Paste this into Terminal:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/PravdeepK/stem-player/main/install.sh | bash
 ```
 
-It downloads the latest release, puts Stem Player in `/Applications` (or
-`~/Applications` if that isn't writable, no password needed) and opens it. Run the
-same line again to update; it quits the app first if it's open. This only works
-once `install.sh` is on `main` and a release has been published.
+That downloads the [latest release](https://github.com/PravdeepK/stem-player/releases/latest),
+puts **Stem Player** in Applications and opens it. Run the same line again to update.
 
-The first time you make stems, the app offers a one-time download of its stem
-engine (Python, PyTorch and Demucs: about 180 MB, about 750 MB on disk). Making
-stems needs macOS 14 or later. **Stem Player → Remove Stem Engine…** frees the
-space again.
+The first time you make stems, the app offers a one-time download of its stem engine
+(Python, PyTorch and Demucs: about 180 MB, about 750 MB on disk). Making stems needs
+macOS 14 or later. **Stem Player → Remove Stem Engine…** gives the space back.
 
-If you download `Stem-Player-mac-arm64.zip` in a browser instead, macOS blocks the
-app the first time because it isn't notarized. Move it to Applications and open it
-once, then go to **System Settings → Privacy & Security** and click **Open
-Anyway**. Or clear the flag in Terminal:
+<details>
+<summary>Downloaded the zip in a browser instead?</summary>
+
+The app isn't notarized by Apple, so macOS blocks it the first time. Move it to Applications
+and open it once, then go to **System Settings → Privacy & Security** and click
+**Open Anyway**. Or clear the flag in Terminal:
 
 ```sh
 xattr -dr com.apple.quarantine "/Applications/Stem Player.app"
 ```
 
-To uninstall, quit the app and delete it along with its data (settings and the
-stem cache):
+</details>
+
+<details>
+<summary>Uninstall</summary>
+
+Quit the app, then delete it along with its settings, stem cache and stem engine:
 
 ```sh
 rm -rf "/Applications/Stem Player.app" ~/Applications/"Stem Player.app"
 rm -rf ~/Library/Application\ Support/Stem\ Player
 ```
 
-## Prerequisites
+</details>
 
-- macOS
-- Node 18+ (tested on v22)
-- Python 3 with `demucs` installed for the interpreter you'll use:
+## Using it
 
-  ```sh
-  python3 -m pip install --user demucs
-  ```
+1. Open the menu with the plain pill on the device, or the ☰ in the top-left.
+2. Next to **Song**, click **Choose…** and pick a track.
+3. Pick a **Quality**: **Fast** (the default) or **Best**, which is cleaner but takes about
+   four times as long.
+4. Click **Separate**. Progress shows under the device, so you can close the menu meanwhile.
+5. The stems load into the device when they're ready, and the song appears under **Recent**.
 
-  If your `demucs` lives in a different interpreter/venv, point the app at it:
+| On the device | What it does |
+| --- | --- |
+| Grooves | Slide for that stem's volume, tap to mute. Hold the outer end to hear the stem alone until you let go; double-click or Option-click for a solo that stays on. Vocals top, drums right, instrumental bottom, bass left. |
+| Centre button | Play / pause |
+| − / + pill | Master volume |
+| Dot pill | Jump 10 seconds back or forward. Hold to keep scrubbing. |
+| Plain pill | Open or close the menu |
+| Anywhere else | Drag to turn the device. Double-click the background to bring it back head-on. |
 
-  ```sh
-  export STEM_PLAYER_PYTHON=/path/to/venv/bin/python
-  ```
+Every part of the device can also be reached with Tab; its control appears while it has focus.
+**Open Stems Folder…** loads any folder containing `vocals`, `drums`, `bass` and
+`instrumental` WAVs.
 
-  The app auto-probes a few common interpreters (`python3` on PATH, Homebrew,
-  the python.org framework builds) and picks the first that can `import demucs`,
-  so an active conda env on PATH usually isn't a problem. `STEM_PLAYER_PYTHON`
-  overrides the probe if you need a specific one:
+## How it works
 
-  ```sh
-  STEM_PLAYER_PYTHON=/path/to/python npm run dev
-  ```
-
-- Model is selectable in the UI (remembered in `<userData>/config.json`):
-  - **Fast — `htdemucs`** (default): ~80 MB weights, quickest.
-  - **Fine-tuned — `htdemucs_ft`**: ~1 GB weights (4 models, one per source),
-    ~4x slower on CPU, better separation.
-  - First use of either downloads its weights once; needs network.
-
-## Configuration (optional)
-
-Copy `.env.example` to `.env`:
-
-```sh
-cp .env.example .env
+```mermaid
+flowchart LR
+    song["Audio file"] --> main["Electron main process"]
+    main -- spawns --> demucs["Python + Demucs<br/>PyTorch on the Apple GPU"]
+    demucs -- "4 WAV stems" --> cache[("Private stem cache")]
+    cache -- IPC --> mixer["Web Audio mixer"]
+    mixer <--> device["3D device<br/>three.js"]
 ```
 
-- `HF_TOKEN` — Hugging Face read token. Silences the "unauthenticated requests
-  to the HF Hub" warning and raises the download rate limit.
-- `STEM_PLAYER_PYTHON` — force a specific Python interpreter.
+- **Separation.** The Electron main process runs [`python/separate.py`](python/separate.py),
+  a thin Demucs wrapper that streams progress back as JSON lines. **Fast** is `htdemucs`
+  (about 80 MB of weights). **Best** is `htdemucs_ft`, four fine-tuned models of about 1 GB
+  in total. Each model downloads once, on first use. Demucs' `other` stem is renamed
+  `instrumental`.
+- **GPU or CPU.** The menu's **Processor** setting defaults to the GPU where Demucs can use
+  it, which was about 40% faster on Fast in testing with no change in the stems. If a GPU
+  run fails, for example running out of memory on a long song, it starts over on the CPU.
+- **The stem engine.** On a Mac without a suitable Python, the app installs its own: a pinned
+  [uv] release, with its checksum checked, fetches a standalone Python 3.13, PyTorch and
+  Demucs into the app's data folder. The engine is built in a staging folder and only goes
+  live once it can import Demucs, so a failed or cancelled download never leaves a broken
+  engine behind.
+- **The cache.** Songs are keyed by a hash of their audio and the model used. The oldest
+  are cleared once the cache passes 2 GB.
+- **The device.** [`blender/build_stem_player.py`](blender/build_stem_player.py) generates
+  the model, and [`lib/deviceScene.js`](lib/deviceScene.js) renders it with three.js outside
+  React's render cycle. It only draws while something is moving, so an idle device costs
+  nothing during playback.
+- **Haptics.** A small native addon ([`native/haptics`](native/haptics)) drives the trackpad's
+  haptic engine.
 
-`.env` is loaded by the Electron main process (via `dotenv`) and the values are
-inherited by the Python subprocess. `.env` is gitignored.
+## Development
 
-## Install
+### Requirements
+
+- macOS on Apple silicon
+- Node 18 or later (developed on 22)
+- Optional: Python 3 with `demucs` (`python3 -m pip install --user demucs`). Without it,
+  the app offers to download its own stem engine, as in a release build.
+
+### Run it
 
 ```sh
 npm install
+npm run build:native   # trackpad haptics; the app runs without it, minus the taps
+npm run dev            # Next.js dev server on :3001 with Electron pointed at it
 ```
 
-## Run (development)
+`npm start` builds the static export into `out/` and runs Electron against it instead.
 
-```sh
-npm run dev
-```
+### Scripts
 
-This starts the Next.js dev server on :3001 and launches Electron pointed at it.
-
-## Run (from static export)
-
-```sh
-npm start
-```
-
-Builds the Next.js static export into `out/` and launches Electron against it.
-
-## Requirements for making stems
-
-Making stems needs a Mac with Apple silicon (M-series). Other Macs can still open
-existing stems; wider support is planned for the web version.
-
-## GPU or CPU
-
-The menu offers **Processor: GPU / CPU**, with the GPU selected wherever this
-Mac's GPU can run Demucs; it was about 40% faster on Fast in testing, with no
-change in the stems. If a GPU run fails (for example, out of memory on a long
-song), it starts over on the CPU automatically. Your choice is remembered, and
-both processors share one cache.
-
-## Where stems go
-
-Separated songs go in a private cache at `<userData>/stem-cache`, so there are no
-folders to manage. A song is recognised by its audio, not its filename, and Fast
-and Best are stored separately, so opening a song you've already separated is
-instant. The oldest songs are deleted once the cache passes 2 GB.
-
-**Export Stems…** is the only thing that writes anywhere else. It copies a song's 4
-WAVs into a new folder, and never replaces an existing one:
-
-```
-<chosen folder>/
-  mysong/
-    vocals.wav
-    drums.wav
-    bass.wav
-    instrumental.wav
-```
-
-## Test it — separation (Phase 1)
-
-1. Launch with `npm run dev` and open the hamburger menu.
-2. Click **Choose…** next to **Song** and pick an audio file (mp3, wav, flac, m4a, mp4). If
-   it's already separated at this quality, it opens straight away.
-3. (Optional) Change the **Quality**.
-4. Click **Separate**. Progress shows in the menu and under the device, so you can
-   close the menu while it runs.
-5. On success the menu closes and the 4 stems load into the mixer. The song is now
-   under **Recent**.
-
-## Test it — mixer (Phase 2)
-
-- After a separation the stems auto-load. **Recent** reopens one instantly.
-  **Open Stems Folder…** loads any folder that contains
-  `vocals/drums/bass/instrumental.wav` (a `stems/` subfolder or its parent both
-  work; a legacy `other.wav` is accepted as the instrumental).
-- All 4 stems stay sample-synced (scheduled off one shared start time). Drag the
-  **seek bar** or click any **waveform** to scrub.
-
-## The device (Phase 3)
-
-| Part | Action |
+| Command | What it does |
 | --- | --- |
-| Grooves | Drag for stem volume, click to mute. Hold the outer end to hear a stem alone until you let go, as on the hardware; double-click or Option-click anywhere for a solo that stays on. Vocals top, drums right, instrumental bottom, bass left. |
-| Centre button | Play / pause |
-| − / + pill | Master volume |
-| Dot pill | Jump 10 seconds back / forward |
-| Plain pill | Open or close the menu |
+| `npm run dev` | Development, with hot reload |
+| `npm start` | Static export, run from disk like the packaged app |
+| `npm test` | Unit tests |
+| `npm run test:e2e` | The real app driven with real input (needs ffmpeg and Demucs). Builds the static export first. |
+| `npm run test:e2e:gpu-fail` | The same, with every GPU run failing, to prove the CPU fallback |
+| `npm run icons` | Rebuilds every app icon from the SVG masters in `assets/icon/` |
+| `npm run pack` | A local `Stem Player.app` in `dist/` |
+| `npm run release:mac` | The release zip that the installer downloads |
+| `blender -b -P blender/build_stem_player.py` | Rebuilds `assets/models/stem-player.glb` |
 
-The hamburger in the top-left opens the same menu, which holds the source, output
-folder, model and waveforms. It opens over the device without moving it, so you
-can keep mixing with it open.
+### Configuration
 
-The device starts head-on. Press and drag to turn it, and it stays where you let
-go. Double-click the background to bring it back. Where a press starts decides what
-it does: on a groove it sets that stem's level, and anywhere else it turns the
-device. Head-on, the edge buttons sit on the outline, so turn the device to reach
-them comfortably. Every part also has a keyboard equivalent, which appears when
-focused.
+Copy `.env.example` to `.env` (it's gitignored). Both values are optional:
 
-The model is generated by a script, so to change it, edit the script and rerun:
+- `STEM_PLAYER_PYTHON` forces a specific Python interpreter. Otherwise the app tries
+  `python3` on PATH, Homebrew and the python.org builds, then its own stem engine.
+- `HF_TOKEN` is a Hugging Face read token. It raises the model-download rate limit and
+  silences the "unauthenticated requests" warning.
 
-```sh
-blender -b -P blender/build_stem_player.py
+### Project layout
+
+```
+electron/     main process: separation, stem cache, stem engine, IPC, menu
+pages/        Next.js renderer (exported statically into out/)
+components/   React UI around the device
+hooks/        audio mixer, stem controls, beat taps
+lib/          three.js device scene, groove gestures, beat detection
+python/       the Demucs wrapper
+blender/      script that generates the 3D model
+native/       haptics addon
+scripts/      icon and README media builds
+test/         unit and end-to-end tests
 ```
 
-That writes `assets/models/stem-player.glb`, which the main process reads over
-IPC in both dev and packaged runs. Part names in the script are a contract with
-`lib/deviceScene.js`.
-
-Stem audio is read over IPC and decoded in the renderer — ~4 decoded buffers
-in memory (a few hundred MB for a full track).
-
-Errors (bad/corrupt file, unsupported format, subprocess crash) show a generic
-failure message in the UI; the real error is logged to the Electron console
-(the terminal running `npm run dev`, and the detached DevTools).
-
-## Tests
-
-```sh
-npm test                    # unit tests: groove gestures, stem cache, recommendations
-npm run test:e2e            # the real app, driven with real input (needs ffmpeg + Demucs)
-npm run test:e2e:gpu-fail   # the same, with every GPU run failing, to prove the CPU fallback
-```
-
-The end-to-end suite builds the static export, launches Electron against it with
-throwaway app data in a temp folder, and prints where its screenshots went.
-
-## Publishing a release
+<details>
+<summary>Publishing a release</summary>
 
 ```sh
 npm run release:mac
 gh release create v0.1.0 dist/Stem-Player-mac-arm64.zip
 ```
 
-`release:mac` builds `dist/Stem-Player-mac-arm64.zip`: Apple silicon only, ad-hoc
-signed, not notarized. The zip keeps the same name every time, so the installer's
-`releases/latest/download/` link always points at the newest one. Bump `version`
-in `package.json` to match the tag. `npm run pack` and `npm run dist` are still
-the local builds (an `.app`, and a `.dmg`), signed with whatever certificate is in
-your keychain; don't upload those.
+`release:mac` builds `dist/Stem-Player-mac-arm64.zip`: Apple silicon only, ad-hoc signed
+and not notarized. The zip has the same name every time, so the installer's
+`releases/latest/download/` link always gets the newest one. Bump `version` in
+`package.json` to match the tag. Don't upload the `npm run pack` or `npm run dist`
+builds; they're signed with whatever certificate is in your keychain.
 
-To try the installer without publishing, point it at a local zip and a scratch
-folder:
+To try the installer without publishing, point it at a local zip and a scratch folder:
 
 ```sh
 STEM_PLAYER_ZIP=dist/Stem-Player-mac-arm64.zip STEM_PLAYER_INSTALL_DIR=/tmp/apps bash install.sh
 ```
 
-Notarizing with a paid Apple Developer ID would remove the browser-download
-warning, if this is ever shared publicly.
+</details>
+
+## Roadmap
+
+- A web version that runs in the browser, with no install.
+
+## Credits
+
+- [Demucs] by Alexandre Défossez at Meta AI does the separation.
+- [three.js](https://threejs.org), [wavesurfer.js](https://wavesurfer.xyz),
+  [Electron](https://www.electronjs.org), [Next.js](https://nextjs.org) and [uv].
+- The device is modelled after the Stem Player hardware by Kano. This is an independent,
+  non-commercial fan project, not affiliated with or endorsed by Kano or Ye.
+
+Built by [PravdeepK](https://github.com/PravdeepK) ·
+[LinkedIn](https://www.linkedin.com/in/pravdeepk/)
 
 [Demucs]: https://github.com/adefossez/demucs
+[uv]: https://github.com/astral-sh/uv
