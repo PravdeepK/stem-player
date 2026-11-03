@@ -97,13 +97,15 @@ button.link:hover:not(:disabled) {
   height: 100vh;
   overflow: hidden;
 }
-/* Pinned while the menu scrolls, so nothing slides under the close button. */
+/* Pinned while the menu scrolls, with the title centred on the 40px close
+   button at top: 20px, both before and after it pins. Sticky offsets start
+   inside the drawer's 26px padding, hence top: -26px to pin at its very top. */
 .head {
   position: sticky;
   z-index: 1;
   top: -26px;
   margin: -26px -20px 18px;
-  padding: 26px 20px 8px 72px;
+  padding: 20px 20px 8px 72px;
   background: var(--bg);
 }
 .title {
@@ -262,8 +264,75 @@ button.link:hover:not(:disabled) {
 .stems-head .section-title {
   margin: 0;
 }
-.bounce-note {
-  margin-bottom: 12px;
+/* --- corner meter: the stems' live levels on the main screen ----------- */
+.meter {
+  position: absolute;
+  z-index: 2;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+.meter-stems--dots {
+  display: flex;
+  gap: 14px;
+  padding: 6px 4px 0;
+}
+.meter-stems--wave {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 180px;
+}
+.meter-stem {
+  transition: opacity 120ms ease;
+}
+.meter-stem.dimmed {
+  opacity: 0.35;
+}
+.meter-dot {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--zone);
+  will-change: transform;
+}
+.meter-wave {
+  position: relative;
+  height: 30px;
+}
+.meter-wave .wave {
+  inset: 7px 0;
+}
+/* --- links, bottom-left --------------------------------------------- */
+.social {
+  position: absolute;
+  z-index: 2;
+  left: 20px;
+  bottom: 20px;
+  display: flex;
+  gap: 4px;
+}
+.social a {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--muted);
+  transition: color 120ms ease, background 120ms ease;
+}
+.social a:hover {
+  color: var(--text);
+  background: var(--panel-2);
+}
+.social svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
 }
 .progress-line {
   display: flex;
@@ -348,7 +417,7 @@ button.link:hover:not(:disabled) {
   position: absolute;
   left: 50%;
   bottom: 22px;
-  width: min(560px, calc(100% - 48px));
+  width: min(560px, calc(100% - 240px));
   transform: translateX(-50%);
 }
 .readout {
@@ -514,10 +583,13 @@ button.link:hover:not(:disabled) {
   overflow: hidden;
   touch-action: none;
 }
-/* Inset so a bounce has room to stretch without clipping. */
+/* Inset, and free to spill into the row's padding, so a bounce never clips. */
+.stem .wave-wrap {
+  overflow: visible;
+}
 .wave {
   position: absolute;
-  inset: 10px 0;
+  inset: 12px 0;
   pointer-events: none;
   will-change: transform;
 }

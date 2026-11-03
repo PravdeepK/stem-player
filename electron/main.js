@@ -135,6 +135,17 @@ function defaultStemsFolder() {
   }
 }
 
+const EXTERNAL_HOSTS = new Set(["github.com", "linkedin.com", "www.linkedin.com"]);
+
+function openExternal(url) {
+  try {
+    const { protocol, hostname } = new URL(url);
+    if (protocol === "https:" && EXTERNAL_HOSTS.has(hostname)) shell.openExternal(url);
+  } catch {
+    /* not a URL worth opening */
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1180,
@@ -146,6 +157,18 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  // Links open in the default browser, never inside the app window.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    openExternal(url);
+    return { action: "deny" };
+  });
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (url.startsWith("https:")) {
+      event.preventDefault();
+      openExternal(url);
+    }
   });
 
   if (isDev) {
@@ -196,6 +219,16 @@ const DEFAULT_MODEL = "htdemucs";
 ipcMain.handle("config:model", async () => {
   const saved = readConfig().lastModel;
   return ALLOWED_MODELS.has(saved) ? saved : DEFAULT_MODEL;
+});
+
+// The user's double-click speed (System Settings › Mouse or Trackpad), so a
+// double-click on a groove means the same thing it does everywhere else on the
+// Mac. Clamped so a click never waits long to become a mute.
+ipcMain.handle("system:doubleClickMs", async () => {
+  const { systemPreferences } = require("electron");
+  const seconds = systemPreferences.getUserDefault("com.apple.mouse.doubleClickThreshold", "float");
+  const ms = seconds > 0 ? Math.round(seconds * 1000) : 350;
+  return Math.min(500, Math.max(250, ms));
 });
 
 // What the renderer needs to recommend settings for this Mac, plus the user's

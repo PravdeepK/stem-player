@@ -179,3 +179,39 @@ export function useStemWaveform({
     },
   };
 }
+
+// Levels jump up at once and fall back gently, like a meter.
+const RELEASE = 0.18;
+// Above 1, quiet passages barely move and loud hits kick harder.
+const WAVE_PUNCH = 1.6;
+
+/**
+ * Bounces a stem's dot and/or waveform with its live level, written straight to
+ * the DOM each frame like the playhead. `amountRef.current` is how far each one
+ * stretches at full level, `{ dot, wave }`, or null to rest. Either ref may be
+ * empty. Reduce Motion always rests.
+ */
+export function useLevelBounce(onLevels, name, dotRef, waveRef, amountRef) {
+  useEffect(() => {
+    if (!onLevels) return undefined;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let shown = 0;
+    return onLevels((levels, stopped) => {
+      const target = levels[name] || 0;
+      if (stopped) shown = 0;
+      else shown = target > shown ? target : shown + (target - shown) * RELEASE;
+      const amount = reduceMotion.matches ? null : amountRef.current;
+      const dot = dotRef.current;
+      const wave = waveRef.current;
+      if (dot) {
+        dot.style.transform = amount && amount.dot ? `scale(${1 + amount.dot * shown})` : "";
+        dot.style.boxShadow =
+          amount && amount.dot ? `0 0 ${10 * shown}px ${2 * shown}px var(--zone)` : "";
+      }
+      if (wave) {
+        wave.style.transform =
+          amount && amount.wave ? `scaleY(${1 + amount.wave * shown ** WAVE_PUNCH})` : "";
+      }
+    });
+  }, [onLevels, name, dotRef, waveRef, amountRef]);
+}

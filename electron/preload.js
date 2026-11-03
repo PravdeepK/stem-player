@@ -54,6 +54,9 @@ contextBridge.exposeInMainWorld("api", {
   /** Read one stem .wav as an ArrayBuffer (for decodeAudioData). */
   readStemFile: (filePath) => ipcRenderer.invoke("stems:read", filePath),
 
+  /** The system double-click interval in ms, clamped to 250-500. */
+  getDoubleClickInterval: () => ipcRenderer.invoke("system:doubleClickMs"),
+
   /** Read the 3D device model (.glb) as an ArrayBuffer. */
   readDeviceModel: () => ipcRenderer.invoke("device:readModel"),
 

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { STEM_NAMES } from "../hooks/useAudioMixer";
 import { useStemVolumes } from "../hooks/useStemControls";
 import DeviceStage from "./DeviceStage";
+import SocialLinks from "./SocialLinks";
+import StemMeter from "./StemMeter";
 import StemRow from "./StemRow";
 
 // The device fills the window, with only the transport under it. Everything
@@ -21,7 +23,7 @@ export default function Mixer({
   activity,
   menu,
   stemsActions,
-  bounce,
+  meterStyle,
   menuOpen,
   onMenuToggle,
   onMenuOpen,
@@ -115,6 +117,9 @@ export default function Mixer({
         onUnavailable={onDeviceUnavailable}
       />
 
+      <StemMeter mixer={mixer} style={meterStyle} />
+      <SocialLinks />
+
       <div className="transport">
         <div className="readout">
           <span className="readout-title" title={title}>
@@ -165,7 +170,6 @@ export default function Mixer({
                 onPreview={previewTime}
                 registerTime={onTime}
                 onLevels={mixer.onLevels}
-                bounce={bounce}
                 active={menuOpen}
               />
             ))}

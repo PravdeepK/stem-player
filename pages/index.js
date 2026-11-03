@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAudioMixer } from "../hooks/useAudioMixer";
+import { useBeatTaps } from "../hooks/useBeatTaps";
 import Mixer from "../components/Mixer";
 import { PROCESSORS, QUALITY, canSeparate, chipName, recommend } from "../lib/recommend";
 
@@ -15,6 +16,16 @@ const STATES = {
   PROCESSING: "processing",
   ERROR: "error",
 };
+
+// The corner meter's style is a per-viewer convenience, so it lives in localStorage.
+const METER_STYLES = [
+  ["dots", "Dots"],
+  ["wave", "Waveform"],
+];
+const METER_STORAGE_KEY = "stem-player.meter-style";
+
+// Beat taps are off until turned on: constant ticking isn't for everyone.
+const BEAT_TAPS_STORAGE_KEY = "stem-player.beat-taps";
 
 function basename(p) {
   if (!p) return "";
@@ -56,8 +67,8 @@ export default function Home() {
   const [processor, setProcessor] = useState("gpu");
   const [mac, setMac] = useState(null); // system profile, null until probed
   const [fellBack, setFellBack] = useState(false);
-  // Temporary: lets the user compare bounce styles before one is chosen.
-  const [bounce, setBounce] = useState("both");
+  const [meterStyle, setMeterStyle] = useState("dots");
+  const [beatTaps, setBeatTaps] = useState(false);
   // null = not yet checked, true/false = checked after mount (avoids SSR flash).
   const [hasApi, setHasApi] = useState(null);
 
@@ -65,6 +76,7 @@ export default function Home() {
   const [nowTs, setNowTs] = useState(0);
 
   const mixer = useAudioMixer();
+  useBeatTaps(mixer, beatTaps);
 
   const toggleMenu = useCallback(() => setMenuOpen((open) => !open), []);
   const openMenu = useCallback(() => setMenuOpen(true), []);
@@ -104,6 +116,34 @@ export default function Home() {
       offFallback();
     };
   }, []);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(METER_STORAGE_KEY);
+      if (saved === "dots" || saved === "wave") setMeterStyle(saved);
+      if (localStorage.getItem(BEAT_TAPS_STORAGE_KEY) === "on") setBeatTaps(true);
+    } catch {
+      /* storage unavailable: keep the default */
+    }
+  }, []);
+
+  function chooseMeterStyle(next) {
+    setMeterStyle(next);
+    try {
+      localStorage.setItem(METER_STORAGE_KEY, next);
+    } catch {
+      /* not remembered this time */
+    }
+  }
+
+  function chooseBeatTaps(next) {
+    setBeatTaps(next);
+    try {
+      localStorage.setItem(BEAT_TAPS_STORAGE_KEY, next ? "on" : "off");
+    } catch {
+      /* not remembered this time */
+    }
+  }
 
   async function openSong(next) {
     setSong(next);
@@ -332,6 +372,59 @@ export default function Home() {
       )}
 
       <section className="section">
+        <h2 className="section-title">Main Screen</h2>
+        <div className="group">
+          <div className="group-row">
+            <span className="row-label">Level Meter</span>
+            <div className="segmented" role="radiogroup" aria-label="Level meter style">
+              {METER_STYLES.map(([id, label]) => (
+                <button
+                  key={id}
+                  role="radio"
+                  aria-checked={meterStyle === id}
+                  className={meterStyle === id ? "on" : ""}
+                  onClick={() => chooseMeterStyle(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <p className="footnote">Shows each stem’s level in the top-right corner while a song plays.</p>
+      </section>
+
+      <section className="section">
+        <h2 className="section-title">Haptics</h2>
+        <div className="group">
+          <div className="group-row">
+            <span className="row-label">Beat Taps</span>
+            <div className="segmented" role="radiogroup" aria-label="Beat taps">
+              {[
+                [false, "Off"],
+                [true, "On"],
+              ].map(([on, label]) => (
+                <button
+                  key={label}
+                  role="radio"
+                  aria-checked={beatTaps === on}
+                  className={beatTaps === on ? "on" : ""}
+                  onClick={() => chooseBeatTaps(on)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <p className="footnote">
+          Taps the trackpad on each drum hit, or on the soloed stem. Turning the volume
+          down lets only the harder hits through. Needs a Force Touch trackpad with a
+          finger resting on it.
+        </p>
+      </section>
+
+      <section className="section">
         <button className="secondary" onClick={handleLoadStems} disabled={busy || !hasApi}>
           Open Stems Folder…
         </button>
@@ -349,29 +442,6 @@ export default function Home() {
           Export Stems…
         </button>
       </div>
-      <div className="group bounce-preview">
-        <div className="group-row">
-          <span className="row-label">Bounce</span>
-          <div className="segmented" role="radiogroup" aria-label="Bounce">
-            {[
-              ["dot", "Dot"],
-              ["wave", "Waveform"],
-              ["both", "Both"],
-            ].map(([id, label]) => (
-              <button
-                key={id}
-                role="radio"
-                aria-checked={bounce === id}
-                className={bounce === id ? "on" : ""}
-                onClick={() => setBounce(id)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-      <p className="footnote bounce-note">Temporary, for picking a style. Play a song to compare.</p>
       {exported && (
         <div className="notice">
           <span title={exported}>Exported to {shortPath(exported)}</span>
@@ -392,7 +462,7 @@ export default function Home() {
         activity={activity}
         menu={menu}
         stemsActions={stemsActions}
-        bounce={bounce}
+        meterStyle={meterStyle}
         menuOpen={menuOpen}
         onMenuToggle={toggleMenu}
         onMenuOpen={openMenu}

@@ -11,7 +11,9 @@ Personal, non-commercial Electron app.
   (waveforms via wavesurfer.js, audio via the Web Audio graph).
 - **Phase 3** — a 3D recreation of the hardware is the control surface, drawn
   live with three.js from a model built in Blender, turned by dragging it, with
-  trackpad haptics.
+  trackpad haptics. Optional beat taps (menu → Haptics, off by default) tap
+  the trackpad on each drum hit, found ahead of time from the drums stem;
+  turning the volume down lets only the harder hits through.
 
 ## Prerequisites
 
@@ -137,7 +139,7 @@ WAVs into a new folder, and never replaces an existing one:
 
 | Part | Action |
 | --- | --- |
-| Grooves | Drag for stem volume, hold the outer end to solo, click to mute. Vocals top, drums right, instrumental bottom, bass left. |
+| Grooves | Drag for stem volume, click to mute. Hold the outer end to hear a stem alone until you let go, as on the hardware; double-click or Option-click anywhere for a solo that stays on. Vocals top, drums right, instrumental bottom, bass left. |
 | Centre button | Play / pause |
 | − / + pill | Master volume |
 | Dot pill | Jump 10 seconds back / forward |
@@ -170,5 +172,16 @@ in memory (a few hundred MB for a full track).
 Errors (bad/corrupt file, unsupported format, subprocess crash) show a generic
 failure message in the UI; the real error is logged to the Electron console
 (the terminal running `npm run dev`, and the detached DevTools).
+
+## Tests
+
+```sh
+npm test                    # unit tests: groove gestures, stem cache, recommendations
+npm run test:e2e            # the real app, driven with real input (needs ffmpeg + Demucs)
+npm run test:e2e:gpu-fail   # the same, with every GPU run failing, to prove the CPU fallback
+```
+
+The end-to-end suite builds the static export, launches Electron against it with
+throwaway app data in a temp folder, and prints where its screenshots went.
 
 [Demucs]: https://github.com/adefossez/demucs

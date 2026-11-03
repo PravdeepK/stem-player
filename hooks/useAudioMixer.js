@@ -285,6 +285,16 @@ export function useAudioMixer() {
     return () => timeListenersRef.current.delete(cb);
   }, []);
 
+  /** The playhead read from the audio clock, not the (throttled) React state. */
+  const getPosition = useCallback(() => positionNow(), []);
+
+  /** Seconds from the graph to the speakers — large on Bluetooth. */
+  const getOutputLatency = useCallback(() => {
+    const ctx = ctxRef.current;
+    if (!ctx) return 0;
+    return (ctx.outputLatency || 0) + (ctx.baseLatency || 0);
+  }, []);
+
   /**
    * THE single load path. Both entry points (auto-load after separation and
    * the "Load stems folder" button) call this with the same shape:
@@ -412,5 +422,7 @@ export function useAudioMixer() {
     setMasterVolume,
     onTime,
     onLevels,
+    getPosition,
+    getOutputLatency,
   };
 }
