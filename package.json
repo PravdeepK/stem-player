@@ -1,5 +1,6 @@
 {
   "name": "stem-player",
+  "productName": "Stem Player",
   "version": "0.1.0",
   "private": true,
   "description": "Personal, non-commercial local stem separation app with a 3D device mixer",
