@@ -100,6 +100,10 @@ rm -rf ~/Library/Application\ Support/Stem\ Player
 | Anywhere else | Drag to turn the device. Double-click the background to bring it back head-on. |
 
 Every part of the device can also be reached with Tab; its control appears while it has focus.
+
+Found a bug or want something added? Use **Help → Report a Bug…** or **Help → Request a
+Feature…** in the app. No GitHub account is needed, and reports appear publicly under
+[Issues](https://github.com/PravdeepK/stem-player/issues).
 **Open Stems Folder…** loads any folder containing `vocals`, `drums`, `bass` and
 `instrumental` WAVs.
 
@@ -164,7 +168,9 @@ npm run dev            # Next.js dev server on :3001 with Electron pointed at it
 | `npm test` | Unit tests |
 | `npm run test:e2e` | The real app driven with real input (needs ffmpeg and Demucs). Builds the static export first. |
 | `npm run test:e2e:gpu-fail` | The same, with every GPU run failing, to prove the CPU fallback |
+| `npm run test:e2e:feedback` | The in-app feedback form, end to end against a mock GitHub |
 | `npm run icons` | Rebuilds every app icon from the SVG masters in `assets/icon/` |
+| `npm run readme:gif` | Re-renders the GIF at the top of this README |
 | `npm run pack` | A local `Stem Player.app` in `dist/` |
 | `npm run release:mac` | The release zip that the installer downloads |
 | `blender -b -P blender/build_stem_player.py` | Rebuilds `assets/models/stem-player.glb` |
@@ -181,16 +187,17 @@ Copy `.env.example` to `.env` (it's gitignored). Both values are optional:
 ### Project layout
 
 ```
-electron/     main process: separation, stem cache, stem engine, IPC, menu
-pages/        Next.js renderer (exported statically into out/)
-components/   React UI around the device
-hooks/        audio mixer, stem controls, beat taps
-lib/          three.js device scene, groove gestures, beat detection
-python/       the Demucs wrapper
-blender/      script that generates the 3D model
-native/       haptics addon
-scripts/      icon and README media builds
-test/         unit and end-to-end tests
+electron/        main process: separation, stem cache, stem engine, IPC, menu
+pages/           Next.js renderer (exported statically into out/)
+components/      React UI around the device
+hooks/           audio mixer, stem controls, beat taps
+lib/             three.js device scene, groove gestures, beat detection
+python/          the Demucs wrapper
+blender/         script that generates the 3D model
+native/          haptics addon
+feedback-relay/  Vercel function that turns in-app reports into GitHub issues
+scripts/         icon and README media builds
+test/            unit and end-to-end tests
 ```
 
 <details>

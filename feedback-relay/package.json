@@ -1,0 +1,12 @@
+{
+  "name": "stem-player-feedback-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Turns Stem Player bug reports and feature requests into GitHub issues",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node dev-server.js"
+  }
+}

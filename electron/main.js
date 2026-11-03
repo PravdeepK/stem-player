@@ -7,6 +7,7 @@ const os = require("os");
 const { spawn, spawnSync } = require("child_process");
 const { createStemCache } = require("./stemCache");
 const { createStemEngine, formatSize, supportsMacOS, DOWNLOAD_BYTES, INSTALLED_BYTES } = require("./stemEngine");
+const { createFeedback } = require("./feedback/window");
 
 // Load .env from the project root (optional). Values there populate
 // process.env, which the Python subprocess inherits (e.g. HF_TOKEN).
@@ -220,7 +221,14 @@ function buildMenu() {
       { role: "quit" },
     ],
   };
-  const template = [appMenu, { role: "fileMenu" }, { role: "editMenu" }, { role: "viewMenu" }, { role: "windowMenu" }];
+  const helpMenu = {
+    role: "help",
+    submenu: [
+      { id: "report-bug", label: "Report a Bug…", click: () => feedback.open("bug", mainWindow) },
+      { id: "request-feature", label: "Request a Feature…", click: () => feedback.open("feature", mainWindow) },
+    ],
+  };
+  const template = [appMenu, { role: "fileMenu" }, { role: "editMenu" }, { role: "viewMenu" }, { role: "windowMenu" }, helpMenu];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
   refreshMenu();
 }
@@ -256,6 +264,15 @@ async function removeEngine() {
   }
   refreshMenu();
 }
+
+// What a bug report may say about making stems: labels, never paths.
+const feedback = createFeedback({
+  engineInfo: async () => ({
+    engine: stemEngine.python(),
+    python: (await probePython()).python,
+    override: process.env.STEM_PLAYER_PYTHON,
+  }),
+});
 
 /**
  * Ask to download the engine and install it, reporting through the separation

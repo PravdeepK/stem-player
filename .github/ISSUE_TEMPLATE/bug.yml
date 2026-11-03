@@ -1,0 +1,39 @@
+# The same fields as Help › Report a Bug… in the app, which also prefills
+# this form (by field id) when it can't post the issue itself.
+name: Bug report
+description: Something in Stem Player doesn't work the way it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Easiest from the app: **Help › Report a Bug…**. This is posted publicly, so leave out song names, file paths and anything private.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a song
+        2. …
+    validations:
+      required: false
+  - type: textarea
+    id: system
+    attributes:
+      label: System info
+      description: App version, macOS version, chip (Apple menu › About This Mac), memory, and whether the stem engine is installed.
+      placeholder: |
+        App version: 0.1.0
+        macOS: 15.1
+        Chip: Apple M2
+        Memory: 16 GB
+        Stem engine: installed
+    validations:
+      required: false

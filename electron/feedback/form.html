@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'; object-src 'none'"
+    />
+    <title>Feedback</title>
+    <link rel="stylesheet" href="form.css" />
+    <script src="form.js" defer></script>
+  </head>
+  <body>
+    <main id="form-view">
+      <header>
+        <h1 id="heading">Report a Bug</h1>
+        <p class="public">This is posted publicly on GitHub.</p>
+      </header>
+
+      <form id="form" novalidate>
+        <div class="fields" id="fields">
+          <label class="field">
+            <span class="label">Title</span>
+            <input id="title" type="text" autocomplete="off" required />
+            <span class="hint" id="title-error" hidden></span>
+          </label>
+
+          <label class="field">
+            <span class="label" id="description-label">What happened?</span>
+            <textarea id="description" rows="4" required></textarea>
+            <span class="hint" id="description-error" hidden></span>
+          </label>
+
+          <label class="field" id="steps-field">
+            <span class="label">Steps to reproduce <span class="dim">(optional)</span></span>
+            <textarea id="steps" rows="3" placeholder="1. Open a song&#10;2. …"></textarea>
+          </label>
+
+          <!-- Honeypot: hidden from people, filled in by form bots. -->
+          <div class="hp" aria-hidden="true">
+            <label>Website <input id="website" type="text" tabindex="-1" autocomplete="off" /></label>
+          </div>
+
+          <div class="system">
+            <label class="check">
+              <input id="include-system" type="checkbox" checked />
+              <span>Include system info</span>
+            </label>
+            <pre id="system-lines" class="mono" aria-label="System info that will be sent"></pre>
+            <p class="small dim" id="system-off" hidden>No system info will be sent.</p>
+          </div>
+
+          <details id="preview">
+            <summary>Show exactly what will be posted</summary>
+            <pre id="preview-text" class="mono"></pre>
+          </details>
+
+          <p class="small dim">Never sent: song names, file paths or logs.</p>
+
+          <div id="failure" class="banner danger" role="alert" hidden>
+            <p id="failure-text"></p>
+            <p class="small">Your text is still here. You can send it another way:</p>
+            <div class="row">
+              <button type="button" id="copy">Copy report</button>
+              <button type="button" id="open-github">Open on GitHub instead</button>
+            </div>
+            <p class="small" id="fallback-note" hidden></p>
+          </div>
+        </div>
+
+        <footer class="actions">
+          <button type="button" id="cancel">Cancel</button>
+          <button type="submit" id="submit" class="primary">Post to GitHub</button>
+        </footer>
+      </form>
+    </main>
+
+    <main id="done-view" hidden>
+      <div class="done">
+        <div class="tick" aria-hidden="true">✓</div>
+        <h1>Thanks, it's posted</h1>
+        <p>
+          Your report is
+          <button type="button" class="link" id="issue-link">issue #0</button>
+          on GitHub.
+        </p>
+        <p class="small dim" id="issue-url"></p>
+      </div>
+      <footer class="actions">
+        <button type="button" id="done" class="primary">Done</button>
+      </footer>
+    </main>
+  </body>
+</html>
