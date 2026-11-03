@@ -17,7 +17,8 @@
     "build:native": "node-gyp rebuild --directory=native/haptics --target=31.3.1 --dist-url=https://electronjs.org/headers",
     "icons": "node scripts/build-icons.mjs",
     "pack": "npm run icons && npm run next:build && electron-builder --mac --dir",
-    "dist": "npm run icons && npm run next:build && electron-builder --mac"
+    "dist": "npm run icons && npm run next:build && electron-builder --mac",
+    "release:mac": "npm run icons && npm run next:build && electron-builder --mac zip --arm64 --config.mac.identity=- --config.mac.hardenedRuntime=false"
   },
   "dependencies": {
     "dotenv": "^17.4.2"
@@ -54,6 +55,8 @@
     "mac": {
       "icon": "build/icon.icns",
       "category": "public.app-category.music",
+      "artifactName": "Stem-Player-mac-${arch}.${ext}",
+      "notarize": false,
       "target": [
         {
           "target": "dmg",

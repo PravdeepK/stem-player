@@ -15,6 +15,41 @@ Personal, non-commercial Electron app.
   the trackpad on each drum hit, found ahead of time from the drums stem;
   turning the volume down lets only the harder hits through.
 
+## Installing
+
+Needs a Mac with Apple silicon (M1 or later). Paste this into Terminal:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/PravdeepK/stem-player/main/install.sh | bash
+```
+
+It downloads the latest release, puts Stem Player in `/Applications` (or
+`~/Applications` if that isn't writable, no password needed) and opens it. Run the
+same line again to update; it quits the app first if it's open. This only works
+once `install.sh` is on `main` and a release has been published.
+
+The first time you make stems, the app offers a one-time download of its stem
+engine (Python, PyTorch and Demucs: about 180 MB, about 750 MB on disk). Making
+stems needs macOS 14 or later. **Stem Player → Remove Stem Engine…** frees the
+space again.
+
+If you download `Stem-Player-mac-arm64.zip` in a browser instead, macOS blocks the
+app the first time because it isn't notarized. Move it to Applications and open it
+once, then go to **System Settings → Privacy & Security** and click **Open
+Anyway**. Or clear the flag in Terminal:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Stem Player.app"
+```
+
+To uninstall, quit the app and delete it along with its data (settings and the
+stem cache):
+
+```sh
+rm -rf "/Applications/Stem Player.app" ~/Applications/"Stem Player.app"
+rm -rf ~/Library/Application\ Support/Stem\ Player
+```
+
 ## Prerequisites
 
 - macOS
@@ -183,5 +218,29 @@ npm run test:e2e:gpu-fail   # the same, with every GPU run failing, to prove the
 
 The end-to-end suite builds the static export, launches Electron against it with
 throwaway app data in a temp folder, and prints where its screenshots went.
+
+## Publishing a release
+
+```sh
+npm run release:mac
+gh release create v0.1.0 dist/Stem-Player-mac-arm64.zip
+```
+
+`release:mac` builds `dist/Stem-Player-mac-arm64.zip`: Apple silicon only, ad-hoc
+signed, not notarized. The zip keeps the same name every time, so the installer's
+`releases/latest/download/` link always points at the newest one. Bump `version`
+in `package.json` to match the tag. `npm run pack` and `npm run dist` are still
+the local builds (an `.app`, and a `.dmg`), signed with whatever certificate is in
+your keychain; don't upload those.
+
+To try the installer without publishing, point it at a local zip and a scratch
+folder:
+
+```sh
+STEM_PLAYER_ZIP=dist/Stem-Player-mac-arm64.zip STEM_PLAYER_INSTALL_DIR=/tmp/apps bash install.sh
+```
+
+Notarizing with a paid Apple Developer ID would remove the browser-download
+warning, if this is ever shared publicly.
 
 [Demucs]: https://github.com/adefossez/demucs
