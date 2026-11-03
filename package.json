@@ -19,7 +19,8 @@
     "readme:gif": "node scripts/render-readme-gif.mjs",
     "pack": "npm run icons && npm run next:build && electron-builder --mac --dir",
     "dist": "npm run icons && npm run next:build && electron-builder --mac",
-    "release:mac": "npm run icons && npm run next:build && electron-builder --mac zip --arm64 --config.mac.identity=- --config.mac.hardenedRuntime=false"
+    "release:mac": "npm run icons && npm run release:zip",
+    "release:zip": "npm run next:build && electron-builder --mac zip --arm64 --config.mac.identity=- --config.mac.hardenedRuntime=false --publish never"
   },
   "dependencies": {
     "dotenv": "^17.4.2"

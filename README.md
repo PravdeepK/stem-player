@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/PravdeepK/stem-player/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/PravdeepK/stem-player?style=flat-square&color=EC7646"></a>
+  <a href="https://github.com/PravdeepK/stem-player/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/PravdeepK/stem-player/ci.yml?branch=main&style=flat-square&label=tests"></a>
   <img alt="macOS on Apple silicon" src="https://img.shields.io/badge/macOS-Apple%20silicon-1F1D1C?style=flat-square&logo=apple&logoColor=white">
   <img alt="Electron" src="https://img.shields.io/badge/Electron-31-47848F?style=flat-square&logo=electron&logoColor=white">
   <img alt="three.js" src="https://img.shields.io/badge/three.js-3D-000000?style=flat-square&logo=threedotjs&logoColor=white">
@@ -195,16 +196,32 @@ test/         unit and end-to-end tests
 <details>
 <summary>Publishing a release</summary>
 
+GitHub Actions builds and publishes a release when you push a version tag:
+
+1. Bump `version` in `package.json` (for example to `0.2.0`) and commit it.
+2. Tag the commit and push both:
+
+   ```sh
+   git tag v0.2.0 && git push origin main --tags
+   ```
+
+The [release workflow](.github/workflows/release.yml) runs on an Apple silicon runner.
+It checks that the tag matches `package.json`, runs the tests, builds the haptics addon
+and builds `Stem-Player-mac-arm64.zip` (ad-hoc signed, not notarized). Then it checks the
+signature and publishes the release with generated notes. The zip has the same name
+every time, so the installer's `releases/latest/download/` link always gets the newest
+one. A tag with a suffix, like `v0.2.0-beta.1`, becomes a prerelease, which the installer
+skips.
+
+To build the same zip locally instead:
+
 ```sh
-npm run release:mac
-gh release create v0.1.0 dist/Stem-Player-mac-arm64.zip
+npm run build:native   # without it, the zip ships without the haptics addon
+npm run release:mac    # re-renders the icons, then builds dist/Stem-Player-mac-arm64.zip
 ```
 
-`release:mac` builds `dist/Stem-Player-mac-arm64.zip`: Apple silicon only, ad-hoc signed
-and not notarized. The zip has the same name every time, so the installer's
-`releases/latest/download/` link always gets the newest one. Bump `version` in
-`package.json` to match the tag. Don't upload the `npm run pack` or `npm run dist`
-builds; they're signed with whatever certificate is in your keychain.
+Don't upload the `npm run pack` or `npm run dist` builds; they're signed with whatever
+certificate is in your keychain.
 
 To try the installer without publishing, point it at a local zip and a scratch folder:
 
