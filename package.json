@@ -19,22 +19,22 @@
     "dist": "npm run icons && npm run next:build && electron-builder --mac"
   },
   "dependencies": {
-    "dotenv": "^17.4.2",
-    "next": "^14.2.35",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "three": "^0.187.0",
-    "wavesurfer.js": "^7.12.11"
+    "dotenv": "^17.4.2"
   },
   "devDependencies": {
     "concurrently": "8.2.2",
     "cross-env": "7.0.3",
     "electron": "31.3.1",
     "electron-builder": "26.18.0",
+    "next": "^14.2.35",
     "node-addon-api": "^8.9.2",
     "node-gyp": "^10.3.1",
     "playwright": "1.63.0",
-    "wait-on": "7.2.0"
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "three": "^0.187.0",
+    "wait-on": "7.2.0",
+    "wavesurfer.js": "^7.12.11"
   },
   "build": {
     "appId": "com.pravdeepk.stemplayer",
