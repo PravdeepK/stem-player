@@ -13,7 +13,10 @@
     "test": "node --no-warnings --test test/*.test.mjs",
     "test:e2e": "npm run next:build && cross-env ELECTRON_RUN_AS_NODE= electron test/e2e/run.js",
     "test:e2e:gpu-fail": "npm run next:build && cross-env FAIL_GPU=1 ELECTRON_RUN_AS_NODE= electron test/e2e/run.js",
-    "build:native": "node-gyp rebuild --directory=native/haptics --target=31.3.1 --dist-url=https://electronjs.org/headers"
+    "build:native": "node-gyp rebuild --directory=native/haptics --target=31.3.1 --dist-url=https://electronjs.org/headers",
+    "icons": "node scripts/build-icons.mjs",
+    "pack": "npm run icons && npm run next:build && electron-builder --mac --dir",
+    "dist": "npm run icons && npm run next:build && electron-builder --mac"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
@@ -27,8 +30,40 @@
     "concurrently": "8.2.2",
     "cross-env": "7.0.3",
     "electron": "31.3.1",
+    "electron-builder": "26.18.0",
     "node-addon-api": "^8.9.2",
     "node-gyp": "^10.3.1",
+    "playwright": "1.63.0",
     "wait-on": "7.2.0"
+  },
+  "build": {
+    "appId": "com.pravdeepk.stemplayer",
+    "productName": "Stem Player",
+    "directories": {
+      "output": "dist"
+    },
+    "asar": false,
+    "files": [
+      "electron/**/*",
+      "out/**/*",
+      "python/**/*",
+      "assets/models/**/*",
+      "native/haptics/build/Release/haptics.node"
+    ],
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.music",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "icon": "build/icon.ico"
+    }
   }
 }

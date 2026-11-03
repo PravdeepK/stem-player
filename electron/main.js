@@ -184,6 +184,10 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Packaged builds take the dock icon from build/icon.icns.
+  if (process.platform === "darwin" && !app.isPackaged) {
+    app.dock.setIcon(path.join(__dirname, "..", "assets", "icon", "build", "icon-macos-1024.png"));
+  }
   stemCache = createStemCache(path.join(app.getPath("userData"), "stem-cache"), MAX_CACHE_BYTES);
   stemCache.clearTemp();
   createWindow();

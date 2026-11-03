@@ -7,3 +7,6 @@ out/
 
 # native addon build output
 native/**/build
+
+# packaged app output
+dist/
