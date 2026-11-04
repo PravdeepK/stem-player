@@ -50,7 +50,8 @@ curl -fsSL https://raw.githubusercontent.com/PravdeepK/stem-player/main/install.
 ```
 
 That downloads the [latest release](https://github.com/PravdeepK/stem-player/releases/latest),
-puts **Stem Player** in Applications and opens it. Run the same line again to update.
+puts **Stem Player** in Applications and opens it. Run the same line again to update: it
+says which version you had and which you got, or that you already have the latest.
 
 The first time you make stems, the app offers a one-time download of its stem engine
 (Python, PyTorch and Demucs: about 180 MB, about 750 MB on disk). Making stems needs
