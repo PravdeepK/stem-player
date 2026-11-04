@@ -206,7 +206,9 @@ test/            unit and end-to-end tests
 
 GitHub Actions builds and publishes a release when you push a version tag:
 
-1. Bump `version` in `package.json` (for example to `0.2.0`) and commit it.
+1. Bump `version` in `package.json` (for example to `0.2.0`), add a `## 0.2.0` section to
+   [`CHANGELOG.md`](CHANGELOG.md) saying what's new, and commit both. The tests fail
+   while the current version has no notes.
 2. Tag the commit and push both:
 
    ```sh
@@ -216,7 +218,8 @@ GitHub Actions builds and publishes a release when you push a version tag:
 The [release workflow](.github/workflows/release.yml) runs on an Apple silicon runner.
 It checks that the tag matches `package.json`, runs the tests, builds the haptics addon
 and builds `Stem-Player-mac-arm64.zip` (ad-hoc signed, not notarized). Then it checks the
-signature and publishes the release with generated notes. The zip has the same name
+signature and publishes the release with that version's `CHANGELOG.md` section as its
+notes, which is where the installer's "What's new" link goes. The zip has the same name
 every time, so the installer's `releases/latest/download/` link always gets the newest
 one. A tag with a suffix, like `v0.2.0-beta.1`, becomes a prerelease, which the installer
 skips.

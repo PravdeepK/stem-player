@@ -46,6 +46,10 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Before the build, so a release missing its notes fails in seconds.
+      - name: Read this version's notes from CHANGELOG.md
+        run: node scripts/release-notes.mjs "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
+
       - run: npm ci
 
       - run: npm test
@@ -81,11 +85,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # A tag with a suffix (v0.2.0-beta.1) becomes a prerelease, which
-          # releases/latest (and so install.sh) skips.
+          # releases/latest (and so install.sh) skips. The CHANGELOG notes come
+          # first; GitHub adds the full changelog link after them.
           prerelease=""
           case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
           gh release create "$GITHUB_REF_NAME" "$ZIP" \
             --title "Stem Player $GITHUB_REF_NAME" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
             --generate-notes \
             --verify-tag \
             $prerelease
