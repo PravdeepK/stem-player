@@ -20,6 +20,7 @@
 
 <p align="center">
   <a href="#install">Install</a> ·
+  <a href="#update">Update</a> ·
   <a href="#using-it">Using it</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#development">Development</a>
@@ -50,8 +51,7 @@ curl -fsSL https://raw.githubusercontent.com/PravdeepK/stem-player/main/install.
 ```
 
 That downloads the [latest release](https://github.com/PravdeepK/stem-player/releases/latest),
-puts **Stem Player** in Applications and opens it. Run the same line again to update: it
-says which version you had and which you got, or that you already have the latest.
+puts **Stem Player** in Applications and opens it. The same line also [updates](#update) it.
 
 The first time you make stems, the app offers a one-time download of its stem engine
 (Python, PyTorch and Demucs: about 180 MB, about 750 MB on disk). Making stems needs
@@ -82,6 +82,34 @@ rm -rf ~/Library/Application\ Support/Stem\ Player
 
 </details>
 
+## Update
+
+Stem Player doesn't update itself. To get the newest version, paste the same line into
+Terminal again:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/PravdeepK/stem-player/main/install.sh | bash
+```
+
+It tells you what happened:
+
+```text
+Updating Stem Player 0.1.0 → 0.1.1...
+Stem Player is updated to 0.1.1. Your songs, settings and stem engine are kept.
+What's new: https://github.com/PravdeepK/stem-player/releases/tag/v0.1.1
+```
+
+or, if there's nothing new, `Stem Player 0.1.1 is already up to date.` without downloading
+anything. If the app is open, it's quit and reopened for you. Your songs, settings and the
+stem engine stay where they are, so nothing downloads again.
+
+- **Which version do I have?** **Stem Player → About Stem Player**.
+- **What changed?** See [CHANGELOG.md](CHANGELOG.md), or the notes on each
+  [release](https://github.com/PravdeepK/stem-player/releases).
+- **Installed from the zip in a browser?** The line above works for you too. Or download the
+  zip from the [latest release](https://github.com/PravdeepK/stem-player/releases/latest),
+  quit Stem Player and replace the app in Applications with the new one.
+
 ## Using it
 
 1. Open the menu with the plain pill on the device, or the ☰ in the top-left.
@@ -89,6 +117,9 @@ rm -rf ~/Library/Application\ Support/Stem\ Player
 3. Pick a **Quality**: **Fast** (the default) or **Best**, which is cleaner but takes about
    four times as long.
 4. Click **Separate**. Progress shows under the device, so you can close the menu meanwhile.
+   Your first song also downloads the stem engine, and each quality downloads its model
+   the first time it's used. Each download has its own progress bar before separating
+   starts.
 5. The stems load into the device when they're ready, and the song appears under **Recent**.
 
 | On the device | What it does |
