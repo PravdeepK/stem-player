@@ -1,7 +1,7 @@
 {
   "name": "stem-player",
   "productName": "Stem Player",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Personal, non-commercial local stem separation app with a 3D device mixer",
   "main": "electron/main.js",
@@ -14,6 +14,7 @@
     "test": "node --no-warnings --test test/*.test.mjs",
     "test:e2e": "npm run next:build && cross-env ELECTRON_RUN_AS_NODE= electron test/e2e/run.js",
     "test:e2e:feedback": "cross-env ELECTRON_RUN_AS_NODE= electron test/e2e/feedback.js",
+    "test:e2e:first-run": "npm run next:build && cross-env ELECTRON_RUN_AS_NODE= electron test/e2e/firstRun.js",
     "test:e2e:gpu-fail": "npm run next:build && cross-env FAIL_GPU=1 ELECTRON_RUN_AS_NODE= electron test/e2e/run.js",
     "build:native": "node-gyp rebuild --directory=native/haptics --target=31.3.1 --dist-url=https://electronjs.org/headers",
     "icons": "node scripts/build-icons.mjs",
