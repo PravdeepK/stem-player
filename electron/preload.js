@@ -41,6 +41,9 @@ contextBridge.exposeInMainWorld("api", {
    */
   exportStems: (stems, title) => ipcRenderer.invoke("stems:export", stems, title),
 
+  /** Open the feedback form, as Help › Report a Bug… / Request a Feature… do. */
+  openFeedback: (type) => ipcRenderer.invoke("feedback:open", type),
+
   /** Reveal a file or folder in Finder. */
   showItem: (targetPath) => ipcRenderer.invoke("shell:showItem", targetPath),
 
@@ -67,6 +70,15 @@ contextBridge.exposeInMainWorld("api", {
   haptic: (pattern) => ipcRenderer.send("haptics:tap", pattern),
 
   /**
+   * Whether taps can be felt: "on", "off" (Force Click and haptic feedback is
+   * off in System Settings), "none" (no Force Touch trackpad) or "unknown".
+   */
+  getHapticsStatus: () => ipcRenderer.invoke("haptics:status"),
+
+  /** Open System Settings › Trackpad. */
+  openTrackpadSettings: () => ipcRenderer.invoke("haptics:openSettings"),
+
+  /**
    * Called when a GPU separation failed and is starting over on the CPU.
    * Returns an unsubscribe function.
    */
@@ -78,8 +90,10 @@ contextBridge.exposeInMainWorld("api", {
 
   /**
    * Called with "engine" when a separation first has to download the stem
-   * engine (progress then follows the download), and "separating" once it's
-   * done and progress restarts at 0 for the song. Returns an unsubscribe function.
+   * engine, or "model" when it first has to download the chosen model's weights
+   * (progress then follows the download), "starting" while the engine starts
+   * up, and "separating" once the model is loaded and progress restarts at 0
+   * for the song. Returns an unsubscribe function.
    */
   onStage: (handler) => {
     const listener = (_event, stage) => handler(stage);

@@ -101,9 +101,9 @@ rm -rf ~/Library/Application\ Support/Stem\ Player
 
 Every part of the device can also be reached with Tab; its control appears while it has focus.
 
-Found a bug or want something added? Use **Help → Report a Bug…** or **Help → Request a
-Feature…** in the app. No GitHub account is needed, and reports appear publicly under
-[Issues](https://github.com/PravdeepK/stem-player/issues).
+Found a bug or want something added? Click the **?** in the bottom-right corner of the app
+(or use **Help → Report a Bug…** / **Help → Request a Feature…**). No GitHub account is
+needed, and reports appear publicly under [Issues](https://github.com/PravdeepK/stem-player/issues).
 **Open Stems Folder…** loads any folder containing `vocals`, `drums`, `bass` and
 `instrumental` WAVs.
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { STEM_NAMES } from "../hooks/useAudioMixer";
 import { useStemVolumes } from "../hooks/useStemControls";
 import DeviceStage from "./DeviceStage";
+import HelpButton from "./HelpButton";
 import SocialLinks from "./SocialLinks";
 import StemMeter from "./StemMeter";
 import StemRow from "./StemRow";
@@ -24,6 +25,7 @@ export default function Mixer({
   menu,
   stemsActions,
   meterStyle,
+  hapticsOff,
   menuOpen,
   onMenuToggle,
   onMenuOpen,
@@ -117,8 +119,9 @@ export default function Mixer({
         onUnavailable={onDeviceUnavailable}
       />
 
-      <StemMeter mixer={mixer} style={meterStyle} />
+      {meterStyle !== "off" && <StemMeter mixer={mixer} style={meterStyle} />}
       <SocialLinks />
+      <HelpButton hapticsOff={hapticsOff} />
 
       <div className="transport">
         <div className="readout">

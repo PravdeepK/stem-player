@@ -8,6 +8,7 @@ const { spawn, spawnSync } = require("child_process");
 const { createStemCache } = require("./stemCache");
 const { createStemEngine, formatSize, supportsMacOS, DOWNLOAD_BYTES, INSTALLED_BYTES } = require("./stemEngine");
 const { createFeedback } = require("./feedback/window");
+const trackpad = require("./trackpad");
 
 // Load .env from the project root (optional). Values there populate
 // process.env, which the Python subprocess inherits (e.g. HF_TOKEN).
@@ -310,7 +311,7 @@ async function offerEngine() {
     });
     console.log("[engine] installed:", python);
     forgetPython();
-    send("separation:stage", "separating");
+    send("separation:stage", "starting");
     send("separation:progress", 0);
     return { ok: true, python };
   } catch (err) {
@@ -410,6 +411,11 @@ ipcMain.handle("shell:showItem", async (_event, targetPath) => {
   if (typeof targetPath === "string" && targetPath.length > 0) {
     shell.showItemInFolder(targetPath);
   }
+});
+
+// --- IPC: the "?" button opens the same form as the Help menu ---------
+ipcMain.handle("feedback:open", async (_event, type) => {
+  if (type === "bug" || type === "feature") feedback.open(type, mainWindow);
 });
 
 // --- stem loading (Phase 2) ----------------------------------------------
@@ -546,6 +552,9 @@ try {
 
 const HAPTIC_PATTERNS = new Set(["generic", "level", "alignment"]);
 
+ipcMain.handle("haptics:status", async () => (haptics ? trackpad.trackpadHaptics() : "unknown"));
+ipcMain.handle("haptics:openSettings", async () => shell.openExternal(trackpad.SETTINGS_URL));
+
 // Fire-and-forget (`send`, not `invoke`) so a tap never adds latency to the
 // click that triggered it.
 ipcMain.on("haptics:tap", (_event, pattern) => {
@@ -616,7 +625,8 @@ ipcMain.handle("separation:start", async (_event, args) => {
 
   const useGpu = processor === "gpu" && (await probePython()).gpu;
   let run = await runDemucs(python, inputPath, stemsDir, model, useGpu ? "mps" : "cpu");
-  if (!run.ok && useGpu && !quitting) {
+  // A model that couldn't be fetched or loaded fails the same way on the CPU.
+  if (!run.ok && useGpu && !quitting && run.code !== "model") {
     console.error("[separation] GPU run failed, retrying on the CPU:", run.detail);
     if (mainWindow) mainWindow.webContents.send("separation:fallback");
     stemsDir = stemCache.begin(id);
@@ -630,10 +640,20 @@ ipcMain.handle("separation:start", async (_event, args) => {
   }
   stemCache.abandon(id);
   console.error("[separation] failed:", run.detail);
+  if (run.code === "model") {
+    const quality = model === "htdemucs_ft" ? "Best" : "Fast";
+    return {
+      ok: false,
+      message: `Couldn't download the ${quality} model. Check your internet connection and try again.`,
+    };
+  }
   return { ok: false, message: "Separation failed. See the console for details." };
 });
 
-/** One Demucs run. Resolves to { ok } or { ok: false, detail }. */
+/**
+ * One Demucs run. Resolves to { ok } or { ok: false, detail, code }, where
+ * code is "model" when the model couldn't be fetched or loaded.
+ */
 function runDemucs(python, inputPath, stemsDir, model, device) {
   return new Promise((resolve) => {
     let child;
@@ -670,6 +690,8 @@ function runDemucs(python, inputPath, stemsDir, model, device) {
         }
         if (msg.type === "progress" && mainWindow) {
           mainWindow.webContents.send("separation:progress", msg.value);
+        } else if (msg.type === "stage" && mainWindow) {
+          mainWindow.webContents.send("separation:stage", msg.value);
         } else if (msg.type === "done" || msg.type === "error") {
           resultMessage = msg;
         }
@@ -701,6 +723,7 @@ function runDemucs(python, inputPath, stemsDir, model, device) {
         detail:
           (resultMessage && resultMessage.message) ||
           `Separation process exited with code ${code}.`,
+        code: resultMessage && resultMessage.code,
       });
     });
   });

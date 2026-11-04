@@ -21,6 +21,7 @@ const STATES = {
 const METER_STYLES = [
   ["dots", "Dots"],
   ["wave", "Waveform"],
+  ["off", "Off"],
 ];
 const METER_STORAGE_KEY = "stem-player.meter-style";
 
@@ -67,8 +68,12 @@ export default function Home() {
   const [processor, setProcessor] = useState("gpu");
   const [mac, setMac] = useState(null); // system profile, null until probed
   const [fellBack, setFellBack] = useState(false);
+  // What the progress bar is following: "starting" | "engine" | "model" | "separating".
+  const [stage, setStage] = useState("starting");
   const [meterStyle, setMeterStyle] = useState("dots");
   const [beatTaps, setBeatTaps] = useState(false);
+  // "on" | "off" | "none" | "unknown", null until checked.
+  const [haptics, setHaptics] = useState(null);
   // null = not yet checked, true/false = checked after mount (avoids SSR flash).
   const [hasApi, setHasApi] = useState(null);
 
@@ -104,15 +109,36 @@ export default function Home() {
     });
     window.api.listRecent().then(setRecents);
 
+    // Checked again on every return to the window, so turning the setting on
+    // in System Settings shows up as soon as the user comes back.
+    const checkHaptics = () => window.api.getHapticsStatus().then(setHaptics);
+    checkHaptics();
+    window.addEventListener("focus", checkHaptics);
+
     const offProgress = window.api.onProgress((value) => {
       setProgress(typeof value === "number" ? value : 0);
     });
+    // Each stage, and the CPU starting over, has a bar of its own, so its time
+    // is counted from its own start.
+    const restartClock = () => {
+      procStartRef.current = Date.now();
+      setNowTs(Date.now());
+    };
+    const offStage = window.api.onStage((next) => {
+      setStage(next);
+      setProgress(0);
+      restartClock();
+    });
     const offFallback = window.api.onFallback(() => {
       setFellBack(true);
+      setStage("starting");
       setProgress(0);
+      restartClock();
     });
     return () => {
+      window.removeEventListener("focus", checkHaptics);
       offProgress();
+      offStage();
       offFallback();
     };
   }, []);
@@ -120,7 +146,7 @@ export default function Home() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(METER_STORAGE_KEY);
-      if (saved === "dots" || saved === "wave") setMeterStyle(saved);
+      if (METER_STYLES.some(([id]) => id === saved)) setMeterStyle(saved);
       if (localStorage.getItem(BEAT_TAPS_STORAGE_KEY) === "on") setBeatTaps(true);
     } catch {
       /* storage unavailable: keep the default */
@@ -172,6 +198,7 @@ export default function Home() {
     procStartRef.current = Date.now();
     setNowTs(Date.now());
     setStatus(STATES.PROCESSING);
+    setStage("starting");
     setProgress(0);
     setFellBack(false);
     setErrorMsg("");
@@ -238,8 +265,21 @@ export default function Home() {
   const supported = !mac || canSeparate(mac);
   const rec = mac && supported && recommend(mac);
 
+  // The bar's label, and a note on why it's there. Downloads read the same on
+  // the main screen; separating names the song there.
+  const STAGES = {
+    starting: ["Getting ready…", ""],
+    engine: ["Downloading the stem engine…", "A one-time download before your first song. "],
+    model: [
+      `Downloading the ${qualityOf(model)?.label} model…`,
+      "Each quality setting downloads its model the first time it's used. ",
+    ],
+    separating: ["Separating…", ""],
+  };
+  const [stageLabel, stageNote] = STAGES[stage] || STAGES.starting;
+
   let activity = "";
-  if (busy) activity = `Separating “${basename(filePath)}”… ${pct}%`;
+  if (busy) activity = `${stage === "separating" ? `Separating “${basename(filePath)}”…` : stageLabel} ${pct}%`;
   else if (mixer.isLoading) activity = "Loading stems…";
 
   // Settings-style groups: a label on the left, its control on the right, and
@@ -319,7 +359,7 @@ export default function Home() {
           {busy ? (
             <div className="progress" role="status">
               <div className="progress-line">
-                <span>Separating…</span>
+                <span>{stageLabel}</span>
                 <span className="dim">{pct}%</span>
               </div>
               <div className="bar">
@@ -327,6 +367,7 @@ export default function Home() {
               </div>
               <p className="footnote">
                 {fellBack ? "The GPU had a problem, so the CPU is finishing this song. " : ""}
+                {stageNote}
                 {timing}
               </p>
             </div>
@@ -391,12 +432,30 @@ export default function Home() {
             </div>
           </div>
         </div>
-        <p className="footnote">Shows each stem’s level in the top-right corner while a song plays.</p>
+        <p className="footnote">
+          {meterStyle === "off"
+            ? "The level meter is hidden."
+            : "Shows each stem’s level in the top-right corner while a song plays."}
+        </p>
       </section>
 
       <section className="section">
         <h2 className="section-title">Haptics</h2>
         <div className="group">
+          <div className="group-row">
+            <span className="row-label">Trackpad</span>
+            <span className="row-value">
+              {haptics === "on" && "Ready"}
+              {haptics === "off" && "Taps are off"}
+              {haptics === "none" && <span className="dim">No Force Touch trackpad</span>}
+              {(haptics === null || haptics === "unknown") && <span className="dim">—</span>}
+            </span>
+            {haptics === "off" && (
+              <button className="choose" onClick={() => window.api.openTrackpadSettings()}>
+                Turn On…
+              </button>
+            )}
+          </div>
           <div className="group-row">
             <span className="row-label">Beat Taps</span>
             <div className="segmented" role="radiogroup" aria-label="Beat taps">
@@ -417,11 +476,22 @@ export default function Home() {
             </div>
           </div>
         </div>
-        <p className="footnote">
-          Taps the trackpad on each drum hit, or on the soloed stem. Turning the volume
-          down lets only the harder hits through. Needs a Force Touch trackpad with a
-          finger resting on it.
-        </p>
+        {haptics === "off" ? (
+          <p className="footnote">
+            Taps are off because Force Click and haptic feedback is turned off in System
+            Settings › Trackpad. Turn it on there to feel the device under your finger.
+          </p>
+        ) : haptics === "none" ? (
+          <p className="footnote">
+            Taps need a MacBook trackpad or a Magic Trackpad 2 or later. With a mouse, the
+            device works the same, just without the taps.
+          </p>
+        ) : (
+          <p className="footnote">
+            Taps the trackpad on each drum hit, or on the soloed stem. Turning the volume
+            down lets only the harder hits through. Needs a finger resting on the trackpad.
+          </p>
+        )}
       </section>
 
       <section className="section">
@@ -463,6 +533,7 @@ export default function Home() {
         menu={menu}
         stemsActions={stemsActions}
         meterStyle={meterStyle}
+        hapticsOff={haptics === "off"}
         menuOpen={menuOpen}
         onMenuToggle={toggleMenu}
         onMenuOpen={openMenu}

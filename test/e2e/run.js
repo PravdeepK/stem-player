@@ -247,10 +247,10 @@ async function run(win) {
   await js(`document.querySelector('.menu-toggle').click()`);
   await sleep(1500);
   const during = await text(".readout-title");
-  check("progress shows under the device with the menu closed", during.startsWith("Separating “tiny song.wav”"), during);
+  check("progress shows under the device with the menu closed", /^(Getting ready…|Separating “tiny song.wav”…) \d+%$/.test(during), during);
   check("no hint while separating", (await text(".stage-caption")) === "");
   let sawFallback = false;
-  for (let i = 0; i < 240 && (await text(".readout-title")).startsWith("Separating"); i++) {
+  for (let i = 0; i < 240 && /^(Getting ready|Separating)/.test(await text(".readout-title")); i++) {
     if ((await drawerText()).includes("CPU is finishing this song")) sawFallback = true;
     await sleep(500);
   }
@@ -501,7 +501,7 @@ async function run(win) {
   check("the corner itself has no controls", (await js(`document.querySelectorAll('.meter button').length`)) === 0);
   await openMenu();
   const switchLabels = await js(`[...document.querySelectorAll('[aria-label="Level meter style"] button')].map(b=>b.textContent).join('|')`);
-  check("the menu offers exactly Dots or Waveform", switchLabels === "Dots|Waveform", switchLabels);
+  check("the menu offers exactly Dots, Waveform or Off", switchLabels === "Dots|Waveform|Off", switchLabels);
   await js(`document.querySelector('.menu-toggle').click()`);
   await sleep(400);
   let cornerDot = 1;

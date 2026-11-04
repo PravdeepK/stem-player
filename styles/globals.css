@@ -334,6 +334,111 @@ button.link:hover:not(:disabled) {
   height: 18px;
   fill: currentColor;
 }
+/* --- help and feedback, bottom-right -------------------------------- */
+.help {
+  position: absolute;
+  z-index: 4;
+  right: 20px;
+  bottom: 20px;
+}
+.help-toggle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+}
+.help-toggle:hover:not(:disabled),
+.help-toggle--open {
+  color: var(--text);
+  border-color: var(--muted);
+  background: var(--panel-2);
+}
+/* Taps are off: a dot on the "?" says there's something worth reading. */
+.help-dot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--zone-vocals);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.help-menu {
+  position: absolute;
+  right: 0;
+  bottom: 42px;
+  width: 260px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  animation: help-in 140ms ease;
+}
+@keyframes help-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.help-menu-title {
+  margin: 4px 8px 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.help-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+}
+.help-item:hover:not(:disabled),
+.help-item:focus-visible {
+  background: var(--panel-2);
+  outline: none;
+}
+.help-item svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.help-item--alert svg {
+  stroke: var(--zone-vocals);
+}
+.help-item--alert {
+  margin-bottom: 6px;
+  background: rgba(240, 180, 41, 0.08);
+}
+.help-item-label {
+  display: block;
+  font-size: 13px;
+}
+.help-item-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
 .progress-line {
   display: flex;
   justify-content: space-between;
